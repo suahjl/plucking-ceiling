@@ -2,6 +2,7 @@
 # -------------- Casts the bands as 'uncertainty in timing of peaks by 1Q earlier'
 # -------------- Option to show or hide confidence bands
 # -------------- Option to not show any forecasts
+# -------------- Open data version (est3)
 
 import pandas as pd
 import numpy as np
@@ -504,7 +505,7 @@ def update_ceiling(data, option, use_lforce=True):
     return d, d_short
 
 df, df_update_ceiling = update_ceiling(data=df, option='gap', use_lforce=True)
-df_nobound, df_nobound_update_ceiling = update_ceiling(data=df, option='gap', use_lforce=True)
+df_nobound, df_nobound_update_ceiling = update_ceiling(data=df_nobound, option='gap', use_lforce=True)
 
 # IV.B --- Compute production function decomposition of ceiling and actual output
 
@@ -556,7 +557,7 @@ def prodfunc(
 
     # Back out levels (observed output)
     d['capital_observed'] = np.exp(d['ln_k_stock15'])
-    if use_lforce: d['labour_observed'] = np.exp(d['ln_labour'])
+    if use_lforce: d['labour_observed'] = np.exp(d['ln_lforce'])
     elif not use_lforce: d['labour_observed'] = np.exp(d['ln_employment'])
     d['tfp_observed'] = np.exp(d['ln_tfp'])
 
@@ -796,6 +797,7 @@ def plot_linechart(data, cols, nice_names, colours, dash_styles, y_axis_title, m
     fig.write_image('Output/PluckingPO_ObsCeiling_' + output_suffix + '.png', height=768, width=1366)
     fig.write_html('Output/PluckingPO_ObsCeiling_' + output_suffix + '.html')
     return fig
+
 
 # Original boom-bust output gap
 df_bb = pd.read_csv('D:/Users/ECSUAH/OneDrive - Bank Negara Malaysia/output_for_po_estimation/2022-10-17_KFilter_Estimates.txt', sep='|')
@@ -1144,7 +1146,7 @@ pil_img2pdf(list_images=seq_output,
             pdf_name='PluckingPO_AllCharts')
 telsendfiles(conf=tel_config,
              path='Output/PluckingPO_AllCharts.pdf',
-             cap='All charts from the PluckingPO flow')
+             cap='All charts from the PluckingPO estimation flow')
 
 # -------------------- EXPORT DATA FRAMES --------------------
 df_pd = df_pd.reset_index()

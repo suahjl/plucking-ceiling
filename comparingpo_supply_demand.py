@@ -1074,6 +1074,9 @@ telsendfiles(conf=tel_config,
              path='Output/ComparingPO_SupplyDemand_AllCharts.pdf',
              cap='All charts on comparing the responses of PO estimates to supply and demand shocks')
 
+# XX --- Notify
+telsendmsg(conf=tel_config,
+           msg='comparingpo_supply_demand: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

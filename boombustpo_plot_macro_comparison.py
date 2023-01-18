@@ -1,4 +1,4 @@
-# ---------------- Compares the Plucking output gap against a selection of macro indicators ----------------
+# ---------------- Compares the boom-bust output gap against a selection of macro indicators ----------------
 
 import pandas as pd
 import numpy as np
@@ -19,7 +19,7 @@ time_start = time.time()
 
 # 0 --- Main settings
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
-T_lb = '1995Q4'
+T_lb = '2002Q2'
 T_ub = '2022Q2'
 list_T_outliers = ['1997Q4', '1998Q1', '1998Q2', '1998Q3', '1998Q4',
                    '1999Q1', '1999Q2', '1999Q3', '1999Q4',
@@ -107,13 +107,15 @@ df_cpi_core_old['cpi_core_old_yoy'] = ((df_cpi_core_old['cpi_core'] / df_cpi_cor
 del df_cpi_core_old['cpi_core']
 
 # Output gap
-df_pluck = pd.read_csv('Output/PluckingPO_Estimates.txt', sep='|')
-df_pluck['quarter'] = pd.to_datetime(df_pluck['quarter']).dt.to_period('Q')
-df_pluck = df_pluck.set_index('quarter')
-df_pluck = df_pluck[['output_gap', 'output_gap_lb']]
+df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')
+df_bb['quarter'] = pd.to_datetime(df_bb['quarter']).dt.to_period('Q')
+df_bb = df_bb[(df_bb['quarter'] >= T_lb) & (df_bb['quarter'] <= T_ub)]
+df_bb = df_bb.set_index('quarter')
+df_bb = df_bb.sort_index()
+df_bb = pd.DataFrame(df_bb['output_gap_avg']).rename(columns={'output_gap_avg': 'output_gap'})
 
 # Merging
-df = pd.concat([df_pluck, df_ceic, df_cpi_core_old], axis=1)
+df = pd.concat([df_bb, df_ceic, df_cpi_core_old], axis=1)
 df = df.sort_index()
 
 # Splicing / filling backseries
@@ -144,7 +146,7 @@ for contemp, lag in tqdm(zip(list_y_cols, list_y_cols_lag2)):
 # Outliers
 df_exoutliers=df[~(df.index.astype('str').isin(list_T_outliers))]  # separate df for plotting
 
-# III --- Plots against plucking output gap
+# III --- Plots
 
 
 def scatterplots(data_full,
@@ -234,21 +236,20 @@ def scatterplots(data_full,
                           hovermode='x',
                           font=dict(size=30, color='black'),
                           showlegend=False)
-        fig.write_image('Output/PluckingPO_MacroComparison_' + output_suffix + '.png', height=768, width=1366)
-        fig.write_html('Output/PluckingPO_MacroComparison_' + output_suffix + '.html')
-
+        fig.write_image('Output/BoomBustPO_MacroComparison_' + output_suffix + '.png', height=768, width=1366)
+        fig.write_html('Output/BoomBustPO_MacroComparison_' + output_suffix + '.html')
 
 # Plot contemporaneous
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names]
+list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names]
 list_suffixes = list_y_cols.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
+    x_nice_names = ['Current Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
-    colours_core=['crimson'] * 7,
+    colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
     line_widths=[3] * 7,
@@ -258,21 +259,21 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/PluckingPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
                cap=j)
 
 # Plot lag1
 time.sleep(10)
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag1]
+list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names_lag1]
 list_suffixes = list_y_cols_lag1.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
+    x_nice_names = ['Current Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
-    colours_core=['crimson'] * 7,
+    colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
     line_widths=[3] * 7,
@@ -282,21 +283,21 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/PluckingPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
                cap=j)
 
 # Plot lag2
 time.sleep(10)
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag2]
+list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names_lag2]
 list_suffixes = list_y_cols_lag2.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
+    x_nice_names = ['Current Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
-    colours_core=['crimson'] * 7,
+    colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
     line_widths=[3] * 7,
@@ -306,97 +307,13 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/PluckingPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
                cap=j)
 
-# III --- Plots of other variables against each other
-list_y_cols_others = ['cpi_core_yoy',
-                      'cpi_yoy',
-                      'cpi_core_yoy_lag1',
-                      'cpi_yoy_lag1',
-                      'cpi_core_yoy_lag2',
-                      'cpi_yoy_lag2',
-                      'cpi_core_yoy',
-                      'cpi_yoy',
-                      'cpi_core_yoy_lag1',
-                      'cpi_yoy_lag1',
-                      'cpi_core_yoy_lag2',
-                      'cpi_yoy_lag2',
-                      'rgdp_yoy']
-list_y_nice_names_others = ['Core CPI YoY',
-                            'CPI YoY',
-                            'Core CPI YoY (1Q Lag)',
-                            'CPI YoY (1Q Lag)',
-                            'Core CPI YoY (2Q Lag)',
-                            'CPI YoY (2Q Lag)',
-                            'Core CPI YoY',
-                            'CPI YoY',
-                            'Core CPI YoY (1Q Lag)',
-                            'CPI YoY (1Q Lag)',
-                            'Core CPI YoY (2Q Lag)',
-                            'CPI YoY (2Q Lag)',
-                            'Real GDP YoY']
-list_x_cols_others = ['ur_yoy',
-                      'ur_yoy',
-                      'ur_yoy',
-                      'ur_yoy',
-                      'ur_yoy',
-                      'ur_yoy',
-                      'rgdp_yoy',
-                      'rgdp_yoy',
-                      'rgdp_yoy',
-                      'rgdp_yoy',
-                      'rgdp_yoy',
-                      'rgdp_yoy',
-                      'ur_yoy']
-list_x_nice_names_others = ['Unemployment Rate YoY',
-                            'Unemployment Rate YoY',
-                            'Unemployment Rate YoY',
-                            'Unemployment Rate YoY',
-                            'Unemployment Rate YoY',
-                            'Unemployment Rate YoY',
-                            'Real GDP YoY',
-                            'Real GDP YoY',
-                            'Real GDP YoY',
-                            'Real GDP YoY',
-                            'Real GDP YoY',
-                            'Real GDP YoY',
-                            'Unemployment Rate YoY']
-# Plot
-time.sleep(10)
-list_main_titles=[y + ' Against ' + x for y, x in zip(list_y_nice_names_others, list_x_nice_names_others)]
-list_suffixes = ['PCurveUR_Core',
-                 'PCurveUR_Headline',
-                 'PCurveUR_Core_Lag1',
-                 'PCurveUR_Headline_Lag1',
-                 'PCurveUR_Core_Lag2',
-                 'PCurveUR_Headline_Lag2',
-                 'PCurveGDP_Core',
-                 'PCurveGDP_Headline',
-                 'PCurveGDP_Core_Lag1',
-                 'PCurveGDP_Headline_Lag1',
-                 'PCurveGDP_Core_Lag2',
-                 'PCurveGDP_Headline_Lag2',
-                 'OkunsLaw']
-scatterplots(
-    data_full=df,
-    data_ex_outliers=df_exoutliers,
-    x_cols=list_x_cols_others,
-    y_cols=list_y_cols_others,
-    x_nice_names = list_x_nice_names_others,
-    y_nice_names = list_y_nice_names_others,
-    colours_core=['black'] * 13,
-    colours_outliers=['grey'] * 13,
-    marker_sizes=[16] * 13,
-    line_widths=[3] * 13,
-    main_titles=list_main_titles,
-    output_suffixes=list_suffixes,
-    show_ols=True
-)
-for i, j in tqdm(zip(list_suffixes, list_main_titles)):
-    telsendimg(conf=tel_config,
-               path='Output/PluckingPO_MacroComparison_' + i + '.png',
-               cap=j)
+# IV --- Notify
+telsendmsg(conf=tel_config,
+           msg='boombustpo_plot_macro_comparison: COMPLETED')
+
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
