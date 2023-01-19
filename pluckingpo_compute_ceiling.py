@@ -25,8 +25,6 @@ time_start = time.time()
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
-show_conf_bands = False
-use_forecast = False  # public or internal use
 
 # I --- Functions
 

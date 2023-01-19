@@ -1,3 +1,5 @@
+# ------------ Runs the entire PF-KF script using multiple data vintages
+
 import gc
 
 import pandas as pd
@@ -5,11 +7,14 @@ import numpy as np
 from datetime import date, timedelta
 import statsmodels.tsa.api as smt
 import statsmodels.formula.api as smf
+from quantecon import hamilton_filter
 import plotly.graph_objects as go
 import telegram_send
 import dataframe_image as dfi
 import time
 from tqdm import tqdm
+
+from ceic_api_client.pyceic import Ceic
 
 import pyeviews as evp
 
@@ -19,6 +24,14 @@ time_start = time.time()
 t_start = '1995Q4'
 t_output_start = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
+t_now = str(pd.to_datetime(str(date.today())).to_period('Q'))
+list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q2', '2027Q4']
+list_colours = ['lightcoral', 'crimson', 'red', 'steelblue', 'darkblue', 'gray', 'black']
+list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid', 'longdash']
+dict_revision_pairs = {'2009Q3': '2007Q2',
+                       '2019Q4': '2015Q4',
+                       '2022Q2': '2019Q4',
+                       '2027Q4': '2022Q2'}
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'  # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
 
 # I --- Functions
@@ -44,11 +57,55 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df = pd.read_parquet('boombustpo_input_data_kf.parquet')
-df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
-df = df.set_index('quarter')
+df_full = pd.read_parquet('pluckingpo_input_data.parquet')  # use same open data input
+df_full['quarter'] = pd.to_datetime(df_full['quarter']).dt.to_period('Q')
+df_full = df_full.set_index('quarter')
 
-# III --- Estimate initial parameter values
+df_kf_ind_full = pd.read_parquet('boombustpo_input_data_kf.parquet')
+df_kf_ind_full['quarter'] = pd.to_datetime(df_kf_ind_full['quarter']).dt.to_period('Q')
+df_kf_ind_full = df_kf_ind_full.set_index('quarter')
+for i in ['gdp', 'ln_gdp', 'ln_gdp_d', 'output_gap_pf', 'po_pf', 'ln_po_pf', 'ln_po_pf_d', 'ln_po_pf_d_trend']:
+    del df_kf_ind_full[i]
+
+
+# III --- Define all functions first
+
+def prodfunc_po(data):
+    d = data.copy()
+
+    # TFP: a*ln(k) + (1-a)*ln(l)
+    d['implied_y'] = (d['alpha'] / 100) * d['ln_nks'] + (1 - d['alpha'] / 100) * d['ln_lforce']
+    d['ln_tfp'] = d['ln_gdp'] - d['implied_y']  # ln(tfp)
+
+    # TFP trend
+    cycle, trend = smt.filters.hpfilter(d.loc[~d['ln_tfp'].isna(), 'ln_tfp'], lamb=1600)  # deals with NA
+    d['ln_tfp_trend'] = trend  # don't replace original with trend component
+
+    # Calculate potential output
+    d['ln_po'] = d['ln_tfp_trend'] + \
+                 ((d['alpha'] / 100) * d['ln_nks_trend']) + \
+                 (1 - d['alpha'] / 100) * d['ln_lforce_trend']
+
+    # Back out levels (PO)
+    d['po'] = np.exp(d['ln_po'])
+    d['output_gap'] = 100 * (d['gdp'] / d['po'] - 1)  # % PO
+    d['capital_input'] = np.exp(d['ln_nks_trend'])
+    d['labour_input'] = np.exp(d['ln_lforce_trend'])
+    d['tfp_input'] = np.exp(d['ln_tfp_trend'])
+
+    # Back out levels (observed output)
+    d['capital_observed'] = np.exp(d['ln_nks'])
+    d['labour_observed'] = np.exp(d['ln_lforce'])
+    d['tfp_observed'] = np.exp(d['ln_tfp'])
+
+    # trim data frame
+    list_col_keep = ['output_gap', 'po', 'gdp',
+                     'capital_input', 'labour_input', 'tfp_input',
+                     'capital_observed', 'labour_observed', 'tfp_observed',
+                     'alpha']
+    d = d[list_col_keep]
+
+    return d
 
 
 def est_init_values(data):
@@ -122,11 +179,6 @@ def est_init_values(data):
 
     return all_init_values
 
-
-all_init_values = est_init_values(data=df)
-
-
-# IV --- Estimate NKPC Using Kalman Filter
 
 
 def kfilter_po_evp(data, initial_values):
@@ -227,45 +279,87 @@ def kfilter_po_evp(data, initial_values):
     return kfilter_output
 
 
-kfilter_po = kfilter_po_evp(data=df, initial_values=all_init_values)
+# Execution (PF --> modify interim data --> KF --> average)
 
+round = 1
+for t_end in tqdm(list_t_ends):
+    # Generate vintage
+    df = df_full[df_full.index <= t_end]
+    df_kf_ind = df_kf_ind_full[df_kf_ind_full.index <= t_end]
 
-# V --- Consolidate output
-df = pd.concat([df, kfilter_po], axis=1)  # left-right concat
-list_col_output = ['gdp', 'po_pf', 'po_kf',
-                   'output_gap_pf', 'output_gap_kf',
-                   'com_2q_gap', 'usdmyr_gap', 'ln_cpi_core_d']
-df = df[list_col_output]
+    # Estimate PO (PF)
+    list_col_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
+    list_col_ln_trend = [i + '_trend' for i in list_col_ln]
+    for i, j in zip(list_col_ln, list_col_ln_trend):
+        cycle, trend = smt.filters.hpfilter(df.loc[~df[i].isna(), i], lamb=1600)
+        df[j] = trend  # don't replace original with trend component
+    df = prodfunc_po(data=df)
+    df = df.rename(columns={'output_gap': 'output_gap_pf',
+                            'po': 'po_pf'})
 
-# Calculate averages of methods
-df['po_avg'] = (df['po_pf'] + df['po_kf']) / 2
-df['output_gap_avg'] = (df['gdp'] / df['po_avg'] - 1)  # will be multiplied by 100 next
+    # Update interim data with PF estimates'
+    df = pd.concat([df, df_kf_ind], axis=1)
 
-# Convert gaps (and log diff of CPI) into percentages
-list_col_perc = ['output_gap_pf', 'output_gap_kf', 'output_gap_avg', 'com_2q_gap', 'usdmyr_gap', 'ln_cpi_core_d']
-for i in list_col_perc:
-    df[i] = 100 * df[i]
+    # Generate logs and log-diffs of gdp, and PF po + divide PF og by 100 + assumed trend PO growth
+    # logs
+    list_col = ['gdp', 'po_pf']
+    list_col_ln = ['ln_' + i for i in list_col]
+    for i, j in tqdm(zip(list_col, list_col_ln)):
+        df[j] = np.log(df[i])  # log(x)
+    # logdiffs
+    list_col_ln_d = [i + '_d' for i in list_col_ln]
+    for i, j in tqdm(zip(list_col_ln, list_col_ln_d)):
+        df[j] = df[i] - df[i].shift(1)  # logdiff(x)
+    # PF output gap
+    list_col = ['output_gap_pf']
+    for i in tqdm(list_col):
+        df[i] = df[i] / 100
+    # Assumed trend growth for ProdFunc PO
+    df['ln_po_pf_d_trend'] = np.power(1.0479, 0.25) - 1
 
-# Reorganise columns
-list_col_output = ['gdp', 'po_pf', 'po_kf', 'po_avg',
-                   'output_gap_pf', 'output_gap_kf', 'output_gap_avg',
-                   'com_2q_gap', 'usdmyr_gap', 'ln_cpi_core_d']
-df = df[list_col_output]
+    # Estimate PO (NKPC-KF)
+    all_init_values = est_init_values(data=df)
+    kfilter_po = kfilter_po_evp(data=df, initial_values=all_init_values)
 
-# Calculate YoY growth of GDP and PO
-list_col = ['gdp', 'po_pf', 'po_kf', 'po_avg']
-list_col_yoy = [i + '_yoy' for i in list_col]
-for i, j in zip(list_col, list_col_yoy):
-    df[j] = 100 * ((df[i] / df[i].shift(4)) - 1)
+    # Consol estimates (PF + KF)
+    df = pd.concat([df, kfilter_po], axis=1)  # left-right concat
+    list_col_output = ['gdp', 'po_pf', 'po_kf',
+                       'output_gap_pf', 'output_gap_kf']
+    df = df[list_col_output]
 
-# VI --- Export data frames
-df = df.reset_index()
-df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('boombustpo_estimates_kf.parquet')
+    # Calculate averages of methods
+    df['po_avg'] = (df['po_pf'] + df['po_kf']) / 2
+    df['output_gap_avg'] = (df['gdp'] / df['po_avg'] - 1)  # will be multiplied by 100 next
 
-# V --- Notify
+    # Convert output gaps into percentages
+    list_col_perc = ['output_gap_pf', 'output_gap_kf', 'output_gap_avg']
+    for i in list_col_perc:
+        df[i] = 100 * df[i]
+
+    # Reorganise columns
+    list_col_output = ['gdp', 'po_pf', 'po_kf', 'po_avg', 'output_gap_pf', 'output_gap_kf', 'output_gap_avg']
+    df = df[list_col_output]
+
+    # Merging
+    if round == 1:
+        df_final = pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})
+    elif round > 1:
+        df_final = pd.concat([df_final,
+                              pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})],
+                             axis=1)
+    round += 1
+
+# V --- Export data
+
+df_final = df_final.reset_index()
+df_final['quarter'] = df_final['quarter'].astype('str')
+df_final.to_parquet('boombustpo_estimates_vintages.parquet', compression='brotli')
+
+# VI --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_compute_kf: COMPLETED')
+           msg='boombustpo_compute_vintages: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
+
+

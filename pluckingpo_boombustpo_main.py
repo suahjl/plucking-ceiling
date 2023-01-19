@@ -38,10 +38,19 @@ import boombustpo_compute_pf
 import boombustpo_compile_input_data_kf
 import boombustpo_compute_kf
 
+time.sleep(15)
+
 import pluckingpo_plot_ceiling_po_og
 import pluckingpo_plot_crisisrecoveries
 
 import pluckingpo_compile_charts
+
+time.sleep(15)
+
+import pluckingpo_compute_vintages
+import pluckingpo_plot_vintages
+import boombustpo_compute_vintages
+import boombustpo_plot_vintages
 
 # End
 time_text = '\n----- Full pluckingpo-boombustpo estimation routine completed in ' + "{:.0f}".format(time.time() - time_start_main) + ' seconds -----'

@@ -1,7 +1,13 @@
-# -------------- Based on Est1c: Bands as 'uncertainty in timing of peaks by 1Q earlier'
+# -------------- Allow PO to deviate from first guess based on K and N
+# -------------- Casts the bands as 'uncertainty in timing of peaks by 1Q earlier'
+# -------------- Option to show or hide confidence bands
+# -------------- Option to not show any forecasts
+# -------------- Open data version (est3)
+
 
 import pandas as pd
 import numpy as np
+from datetime import date, timedelta
 import statsmodels.formula.api as smf
 import statsmodels.tsa.api as sm
 from quantecon import hamilton_filter
@@ -18,14 +24,17 @@ time_start = time.time()
 # 0 --- Main settings
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
-list_T_ub = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q2']
+T_lb_day = date(1995, 1, 1)
+
+list_T_ub = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q3']
 list_colours = ['lightcoral', 'crimson', 'red', 'steelblue', 'darkblue', 'gray']
 list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid']
 dict_revision_pairs = {'2009Q3': '2007Q2',
                        '2019Q4': '2015Q4',
-                       '2022Q2': '2019Q4'}
+                       '2022Q3': '2019Q4'}
 list_threshold = [1, 1, 1, 1, 1, 0.8]
 list_interpolate_method = ['slinear', 'slinear', 'slinear', 'slinear', 'slinear', 'quadratic']
+
 
 # I --- Functions
 
@@ -49,72 +58,24 @@ def telsendmsg(conf='', msg=''):
                        messages=[msg])
 
 
-def wrangle(
+# II --- Load data
+df_full = pd.read_parquet('pluckingpo_input_data.parquet')
+df_full['quarter'] = pd.to_datetime(df_full['quarter']).dt.to_period('Q')
+df_full = df_full.set_index('quarter')
+
+
+# III --- Define functions for computation (only initial estimate + update + output gap; decomposition not needed)
+
+
+def compute_ceilings(
         data,
-        trim_start=None,
-        trim_end=None,
-        seasonal_adj=True,
-        log_transform=True,
-        filter_using_hamilton=False
+        levels_labels,
+        ref_level_label,
+        downturn_threshold,
+        bounds_timing_shift,
+        hard_bound,
+        interpolation_method
 ):
-    # Trimming and renaming columns
-    d = data.copy()
-    d['quarter'] = pd.to_datetime(d['quarter']).dt.to_period('Q')
-
-    # Timebound
-    if trim_start is not None:
-        d = d[d['quarter'] >= trim_start]
-    if trim_end is not None:
-        d = d[d['quarter'] <= trim_end]
-
-    d = d.set_index('quarter')
-
-    # Generate YoY growth on unseasonal-adjusted GDP
-    d['gdp15_yoy'] = 100 * ((d['gdp15'] / d['gdp15'].shift(-4)) - 1)
-
-    # Seasonal adjustment: only GDP, labour, and employment
-    list_col = ['gdp15', 'labour', 'employment']
-    if seasonal_adj:
-        for i in list_col:
-            sadj_res = sm.x13_arima_analysis(d[i])
-            sadj_seasadj = sadj_res.seasadj
-            d[i] = sadj_seasadj  # Ideally, use MYS-specific calendar effects
-
-    # Take logs post-seasonal adjustment: now including capital stock
-    list_col = list_col + ['k_stock15']
-    list_col_ln = ['ln_' + i for i in list_col]
-    if log_transform:
-        for i, j in zip(list_col, list_col_ln):
-            d[j] = np.log(d[i])
-
-    # Take log-difference
-    list_col_ln_diff = [i + '_diff' for i in list_col_ln]
-    for i, j in zip(list_col_ln, list_col_ln_diff):
-        d[j] = d[i] - d[i].shift(1)
-
-    # filter trend
-    list_col_ln_trend = [i + '_trend' for i in list_col_ln]
-    list_col_ln_cycle = [i + '_cycle' for i in list_col_ln]
-    if not filter_using_hamilton:
-        for i, j, k in zip(list_col_ln, list_col_ln_trend, list_col_ln_cycle):
-            cycle, trend = sm.filters.hpfilter(d[i], lamb=1600)
-            d[j] = trend  # don't replace original with trend component
-            d[k] = cycle  # don't replace original with cycle component
-    elif filter_using_hamilton:
-        for i, j, k in zip(list_col_ln, list_col_ln_trend, list_col_ln_cycle):
-            cycle, trend = hamilton_filter(d[i], h=8, p=4)  # 2 years (2 for annual, 8 for quarter, 24 for monthly, ...)
-            d[j] = trend  # don't replace original with trend component
-            d[k] = cycle  # don't replace original with cycle component
-
-    return d
-
-
-def compute_ceilings(data,
-                     levels_labels,
-                     ref_level_label,
-                     downturn_threshold,
-                     bounds_timing_shift,
-                     interpolation_method):
 
     # Deep copy
     d = data.copy()
@@ -235,18 +196,11 @@ def compute_ceilings(data,
                 # Check if more than 1 expansion episodes
                 single_exp = bool(d[epi].max() == 0)
                 if not single_exp:
-
-                    # Check if at least single or multiple peaks
-                    single_peak = bool(d[peak].sum() == 1)
-                    if single_peak:
-                        d.loc[d.index == T_ub, peak] = 1  # if single peak, set last observation as a peak
-                    # Check if the latest expansion has been at least 6-10 years (force a new peak)
-                    ten_years = bool(d.loc[d[epi] == d[epi].max(), epi].count() >= 24)
-                    if ten_years:
-                        d.loc[d.index == T_ub, peak] = 1  # if X years since last peak, set last observation as a peak
-
                     # interpolate
+                    if d[peak].sum() == 1:  # if only 1 peak is identified, force last obs to be another peak
+                        d.iloc[-1, d.columns.get_loc(peak)] = 1
                     d.loc[d[peak] == 1, ceiling] = d[levels]  # peaks as joints
+                    # return d  # debug
                     d = d.reset_index()
                     d[ceiling] = d[ceiling].interpolate(method=interpolation_method)  # too sparse for cubic
                     d = d.set_index('quarter')
@@ -275,7 +229,7 @@ def compute_ceilings(data,
                     # interpolate
                     d.loc[d[peak] == 1, ceiling] = d[levels]  # peaks as joints
                     d = d.reset_index()
-                    d[ceiling] = d[ceiling].interpolate(method=interpolation_method)
+                    d[ceiling] = d[ceiling].interpolate(method=interpolation_method)  # too sparse for cubic
                     d = d.set_index('quarter')
 
                     # end-point extrapolation
@@ -295,6 +249,10 @@ def compute_ceilings(data,
                     for r in tqdm(range(nrows_na)):
                         d.loc[d[ceiling].isna(), ceiling] = d[ceiling].shift(-1) - ceiling_one_avgdiff  # reverse
 
+                # hard-impose definition of 'ceiling'
+                if hard_bound | (levels == 'ln_lforce') | (levels == 'ln_nks'):
+                    d.loc[d[ceiling] < d[levels], ceiling] = d[levels]  # replace with levels if first guess is lower
+
         # Left right merge + bounds
         if round == 1:
             d_consol = d.copy()  # initial copy
@@ -308,175 +266,138 @@ def compute_ceilings(data,
     return d_consol
 
 
-def output_gap(
-        data,
-        use_labour=True
-):
+def update_ceiling(data, option, hard_bound):
     d = data.copy()
 
-    d['gdp15_ceiling'] = np.exp(d['ln_gdp15_ceiling'])
-    d['gdp15_ceiling_lb'] = np.exp(d['ln_gdp15_ceiling_lb'])
+    d['ln_gdp_ceiling_initial'] = d['ln_gdp_ceiling'].copy()  # for reference
+    d['ln_gdp_ceiling_initial_lb'] = d['ln_gdp_ceiling_lb'].copy()  # for reference
 
-    d['output_gap'] = 100 * (d['gdp15'] / d['gdp15_ceiling'] - 1)  # % PO
-    d['output_gap_lb'] = 100 * (d['gdp15'] / d['gdp15_ceiling_lb'] - 1) # % PO
+    # 04jan2023: Ygap = Y0gap + alpha(deltaKgap) + (1-alpha)(deltaNgap)
+    if option == 'delta_gap':
+        d['ln_gdp_ceiling'] = \
+            d['ln_gdp_ceiling_initial'] + \
+            (d['alpha'] / 100) * (d['ln_nks_ceiling'] - d['ln_nks_ceiling'].shift(1)) + \
+            (1 - d['alpha'] / 100) * (d['ln_lforce_ceiling'] - d['ln_lforce_ceiling'].shift(1))
+        d['ln_gdp_ceiling_lb'] = \
+            d['ln_gdp_ceiling_initial_lb'] + \
+            (d['alpha'] / 100) * (d['ln_nks_ceiling_lb'] - d['ln_nks_ceiling_lb'].shift(1)) + \
+            (1 - d['alpha'] / 100) * (d['ln_lforce_ceiling_lb'] - d['ln_lforce_ceiling_lb'].shift(1))
+        d_short = d.copy()
+        d_short['ln_k_rev'] = \
+            (d['alpha'] / 100) * (d['ln_nks_ceiling'] - d['ln_nks_ceiling'].shift(1))
+        d_short['ln_n_rev'] = \
+            (1 - d['alpha'] / 100) * (d['ln_lforce_ceiling'] - d['ln_lforce_ceiling'].shift(1))
+        d_short['k_rev'] = \
+            ((np.exp(d['ln_gdp_ceiling']) / np.exp(d['ln_gdp_ceiling_initial'])) /
+             (np.exp(d_short['ln_n_rev']) ** (1 - d['alpha'] / 100)))  # Y1/Y2 * 1/e^(x1)
+        d_short['n_rev'] = \
+            ((np.exp(d['ln_gdp_ceiling']) / np.exp(d['ln_gdp_ceiling_initial'])) /
+            (np.exp(d_short['ln_k_rev']) ** (d['alpha'] / 100)))
+
+    # 04jan2023: Ygap = Y0gap + alpha(Kgap) + (1-alpha)(Ngap)
+    if option == 'gap':
+        d['ln_gdp_ceiling'] = \
+            d['ln_gdp_ceiling_initial'] + \
+            (d['alpha'] / 100) * (d['ln_nks'] - d['ln_nks_ceiling']) + \
+            (1 - d['alpha'] / 100) * (d['ln_lforce'] - d['ln_lforce_ceiling'])
+        d['ln_gdp_ceiling_lb'] = \
+            d['ln_gdp_ceiling_initial_lb'] + \
+            (d['alpha'] / 100) * (d['ln_nks'] - d['ln_nks_ceiling_lb']) + \
+            (1 - d['alpha'] / 100) * (d['ln_lforce'] - d['ln_lforce_ceiling_lb'])
+        d_short = d.copy()
+        d_short['ln_k_rev'] = \
+            (d['alpha'] / 100) * (d['ln_nks'] - d['ln_nks_ceiling'])
+        d_short['ln_n_rev'] = \
+            (1 - d['alpha'] / 100) * (d['ln_lforce'] - d['ln_lforce_ceiling'])
+        d_short['k_rev'] = \
+            ((np.exp(d['ln_gdp_ceiling']) / np.exp(d['ln_gdp_ceiling_initial'])) /
+            (np.exp(d['ln_lforce'] - d['ln_lforce_ceiling']) ** (1 - d['alpha'] / 100)))  # X2 = Y1/Y0 * 1/X1^(B1)
+        d_short['n_rev'] = \
+            ((np.exp(d['ln_gdp_ceiling']) / np.exp(d['ln_gdp_ceiling_initial'])) /
+            (np.exp(d['ln_nks'] - d['ln_nks_ceiling']) ** (d['alpha'] / 100)))
+
+    # Hardbound definition
+    if hard_bound:
+        d.loc[d['ln_gdp_ceiling'] < d['ln_gdp'], 'ln_gdp_ceiling'] = d['ln_gdp']
+
+    # Reduced DF for plotting
+    d_short = d_short[['ln_gdp_ceiling', 'ln_gdp_ceiling_initial', 'ln_k_rev', 'ln_n_rev', 'k_rev', 'n_rev']]
+
+    # Convert reduced DF into levels
+    d_short['gdp_ceiling'] = np.exp(d_short['ln_gdp_ceiling'])
+    d_short['gdp_ceiling_initial'] = np.exp(d_short['ln_gdp_ceiling_initial'])
+
+    # Output
+    return d, d_short
+
+
+def output_gap(data):
+    d = data.copy()
+
+    d['gdp_ceiling'] = np.exp(d['ln_gdp_ceiling'])
+    d['gdp_ceiling_lb'] = np.exp(d['ln_gdp_ceiling_lb'])
+
+    d['output_gap'] = 100 * (d['gdp'] / d['gdp_ceiling'] - 1)  # % PO
+    d['output_gap_lb'] = 100 * (d['gdp'] / d['gdp_ceiling_lb'] - 1) # % PO
 
     # trim data frame
     list_col_keep = ['output_gap', 'output_gap_lb',
-                     'gdp15_ceiling', 'gdp15_ceiling_lb',
-                     'gdp15']
+                     'gdp_ceiling', 'gdp_ceiling_lb',
+                     'gdp']
     d = d[list_col_keep]
 
     return d
 
 
-# II.A --- Wrangling
-# Base data
-df_raw = pd.read_csv('testdata.txt', sep='|')
-df_full = wrangle(
-    data=df_raw,
-    trim_start=T_lb,
-    trim_end=list_T_ub[-1],
-    seasonal_adj=True,
-    log_transform=True,
-    filter_using_hamilton=False
-)
-df_full = df_full[['gdp15', 'ln_gdp15', 'ln_gdp15_diff']]  # Only GDP is required
-
-
-# ------------ COMPUTING VINTAGES ------------
-
+# IV --- Computation
 round = 1
 for T_ub, interpolate_method, threshold in zip(list_T_ub, list_interpolate_method, list_threshold):
 
-    # II.B --- Generate vintage
+    # Generate vintage
     df = df_full[df_full.index <= T_ub]
 
-    # III --- Compute ceiling
+    # Compute ceiling
 
-    list_ln = ['ln_gdp15']
+    list_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
     df = compute_ceilings(
         data=df,
         levels_labels=list_ln,
-        ref_level_label='ln_gdp15',
+        ref_level_label='ln_gdp',
         downturn_threshold=threshold,  # 0.65 to 0.8
         bounds_timing_shift=-1,
+        hard_bound=True,
         interpolation_method=interpolate_method
     )
 
-    # IV --- Compute output gap
+    df, df_rev = update_ceiling(
+        data=df,
+        option='gap',
+        hard_bound=True
+    )
 
-    df_og = output_gap(data=df, use_labour=False)
+    # Compute output gap
+
+    df_og = output_gap(data=df)
     df_og = pd.DataFrame(df_og).rename(columns={'output_gap': T_ub})
 
-    # V --- Consolidate vintages
+    # Consolidate vintages
     if round == 1:
         df_final = df_og.copy()
     elif round > 1:
         df_final = pd.concat([df_final, df_og], axis=1)
     round += 1
 
-# ------------ PLOTTING VINTAGES ------------
+df_final = df_final[list_T_ub]
 
-# VI --- Plotting
+# V --- Export data
 
+df_final = df_final.reset_index()
+df_final['quarter'] = df_final['quarter'].astype('str')
+df_final.to_parquet('pluckingpo_estimates_vintages.parquet', compression='brotli')
 
-def plot_linechart(data, cols, nice_names, colours, dash_styles, y_axis_title, main_title, output_suffix):
-    fig = go.Figure()
-    for col, nice_name, colour, dash_style in tqdm(zip(cols, nice_names, colours, dash_styles)):
-        fig.add_trace(
-            go.Scatter(
-                x=data.index.astype('str'),
-                y=data[col],
-                name=nice_name,
-                mode='lines',
-                line=dict(color=colour, dash=dash_style)
-            )
-        )
-    fig.update_layout(title=main_title,
-                      yaxis_title=y_axis_title,
-                      plot_bgcolor='white',
-                      hovermode='x',
-                      font=dict(size=20, color='black'))
-    fig.write_image('Output/PluckingPO_Vintage_' + output_suffix + '.png', height=768, width=1366)
-    fig.write_html('Output/PluckingPO_Vintage_' + output_suffix + '.html')
-    return fig
-
-
-df_final['ref'] = 0
-
-fig_vintages = plot_linechart(
-    data=df_final,
-    cols=list_T_ub + ['ref'],
-    nice_names=list_T_ub + ['Reference (Y=0)'],
-    colours=list_colours + ['black'],
-    dash_styles=list_dash_styles + ['solid'],
-    y_axis_title='% Potential Output',
-    main_title='Vintages of Plucking Output Gap Estimates',
-    output_suffix='OutputGap'
-)
-telsendimg(conf=tel_config,
-           path='Output/PluckingPO_Vintage_OutputGap.png',
-           cap='Vintages of Plucking Output Gap Estimates')
-
-# ------------------------ PLOTTING SIZE OF REVISIONS ------------------------
-
-# IX --- Calculating revision sizes by pairs
-df_rev = pd.DataFrame(columns=['rev_consol'])
-round = 1
-for post, pre in tqdm(dict_revision_pairs.items()):
-    df_rev['rev_' + post + '_' + pre] = df_final[post] - df_final[pre]
-    if round == 1:
-        df_rev['rev_consol'] = df_rev['rev_' + post + '_' + pre].copy()
-    elif round > 1:
-        df_rev.loc[df_rev['rev_consol'].isna(), 'rev_consol'] = df_rev['rev_' + post + '_' + pre]
-    round += 1
-df_rev = df_rev[df_rev.index <= list_T_ub[-2]]
-
-# X --- Plotting
-
-
-def plot_areachart(data, cols, nice_names, colours, y_axis_title, main_title, show_legend, ymin, ymax, output_suffix):
-    fig = go.Figure()
-    for col, nice_name, colour in tqdm(zip(cols, nice_names, colours)):
-        fig.add_trace(
-            go.Scatter(
-                x=data.index.astype('str'),
-                y=data[col],
-                name=nice_name,
-                mode='none',
-                fill='tonexty',  # tozeroy
-                fillcolor=colour,
-            )
-        )
-    fig.update_yaxes(range=[ymin, ymax])
-    fig.update_layout(title=main_title,
-                      yaxis_title=y_axis_title,
-                      plot_bgcolor='white',
-                      hovermode='x',
-                      font=dict(size=20, color='black'),
-                      showlegend=show_legend)
-    fig.write_image('Output/PluckingPO_Vintage_' + output_suffix + '.png', height=768, width=1366)
-    fig.write_html('Output/PluckingPO_Vintage_' + output_suffix + '.html')
-    return fig
-
-
-fig_rev = plot_areachart(
-    data=df_rev,
-    cols=['rev_consol'],
-    nice_names=['Revisions'],
-    colours=['lightcoral'],
-    y_axis_title='Percentage Points (% Potential Output)',
-    main_title='Revisions in Plucking Output Gap Across Consecutive Vintages',
-    show_legend=False,
-    ymin=-5,
-    ymax=5,
-    output_suffix='OutputGap_Revisions'
-)
-telsendimg(conf=tel_config,
-           path='Output/PluckingPO_Vintage_OutputGap_Revisions.png',
-           cap='Revisions in Plucking Output Gap Across Consecutive Vintages')
-
+# VI --- Notify
+telsendmsg(conf=tel_config,
+           msg='pluckingpo_compute_vintages: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
-
