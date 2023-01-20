@@ -21,12 +21,10 @@ time_start = time.time()
 
 # 0 --- Main settings
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
-T_lb = '1995Q1'
-T_ub = '2022Q2'
+T_lb = '1995Q1'  # 1995Q1
+T_ub = '2022Q3'  # '2022Q3' '2019Q4'
 T_lb_day = date(1995, 1, 1)
-T_ub_day = date(2022, 9, 30)
-T_forecast_start = '2022Q3'  # Start of forecast period
-T_forecast_end = '2023Q4'  # End of forecast period
+T_ub_day = date(2022, 9, 30)  # date(2022, 9, 30)
 Ceic.login("suahjinglian@bnm.gov.my", "dream1234")  # suahjinglian@bnm.gov.my
 
 # I --- Functions
@@ -78,17 +76,18 @@ def telsendmsg(conf='', msg=''):
 
 # II --- Data
 # Plucking PO estimates
-df = pd.read_csv('Output/PluckingPO_Estimates.txt', sep='|')
+df = pd.read_parquet('pluckingpo_estimates_pf.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df[(df['quarter'] >= T_lb) & (df['quarter'] <= T_ub)]
 df = df.set_index('quarter')
 df = df.rename(columns={'output_gap': 'output_gap_pluck',
                         'output_gap_lb': 'output_gap_pluck_lb',
-                        'gdp15_ceiling': 'po_pluck',
-                        'gdp15_ceiling_lb': 'po_pluck_lb'})
+                        'gdp_ceiling': 'po_pluck',
+                        'gdp_ceiling_lb': 'po_pluck_lb'})
 
 # Boom-bust PO estimates
-df_bb = pd.read_csv('D:/Users/ECSUAH/OneDrive - Bank Negara Malaysia/output_for_po_estimation/2022-10-17_KFilter_Estimates.txt', sep='|')
+df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')  # read_csv('D:/Users/ECSUAH/OneDrive - Bank Negara Malaysia/output_for_po_estimation/2023-01-04_KFilter_Estimates.txt', sep='|')
+# df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')
 df_bb['quarter'] = pd.to_datetime(df_bb['quarter']).dt.to_period('Q')
 df_bb = df_bb[(df_bb['quarter'] >= T_lb) & (df_bb['quarter'] <= T_ub)]
 df_bb = df_bb.set_index('quarter')
@@ -127,66 +126,79 @@ df = pd.concat([df_bb, df, df_ceic, core_cpi_old], axis=1)
 df.loc[df.index < '2015Q1', 'cpi_core'] = df['cpi_core_old']  # merge old and new cpi_core
 del df['cpi_core_old']
 df = df.sort_index()
+df = df[(df.index >= T_lb) & (df.index <= T_ub)]
 
 # Trim columns
 col_keep = ['po_boombust', 'po_pluck', 'po_pluck_lb',
             'output_gap_boombust', 'output_gap_pluck', 'output_gap_pluck_lb',
-            'gdp15',
+            'gdp',
             'brent',
-            'cpi', 'cpi_core',
             'gepu',
+            'cpi', 'cpi_core',
             'blr',
             'mgs10y', 'mgs1y', 'mgs2y', 'mgs3y', 'mgs4y', 'mgs5y',
             'klibor1m']
 df = df[col_keep]
 
+# Seasonally adjust core cpi and brent
+list_col = ['cpi_core', 'brent']
+for i in tqdm(list_col):
+    sadj_res = sm.x13_arima_analysis(df.loc[df[i].notna(), i])  # handles NAs
+    sadj_seasadj = sadj_res.seasadj
+    df[i] = sadj_seasadj
+
 # first diff and log-diff transformation
 col_levels = ['po_boombust', 'po_pluck', 'po_pluck_lb',
-              'gdp15', 'brent', 'cpi', 'cpi_core']
+              'gdp', 'brent', 'cpi', 'cpi_core']
 col_rates = ['output_gap_boombust', 'output_gap_pluck', 'output_gap_pluck_lb',
              'mgs10y', 'mgs1y', 'mgs2y', 'mgs3y', 'mgs4y', 'mgs5y', 'blr', 'klibor1m']
 for i in col_levels:
     df[i] = np.log(df[i]) - np.log(df[i]).shift(1)
+    # if i == 'po_boombust':
+    #     df[i] = df[i] - df[i].shift(1)  # I(2)
 for i in col_rates:
     df[i] = df[i] - df[i].shift(1)
 
 
 # II --- VAR
 
-order_base1a = ['gepu', 'brent', 'gdp15', 'cpi_core', 'blr']
+max_lags_choice = 4
+trend_term_choice = 'c'
+
+order_base1a = ['gepu', 'brent', 'gdp', 'cpi_core', 'blr']
 order_pluck1a = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'blr']
 order_boombust1a = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'blr']
 
-order_base1b = ['gepu', 'brent', 'gdp15', 'cpi_core', 'mgs10y']
+order_base1b = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs10y']
 order_pluck1b = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs10y']
 order_boombust1b = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs10y']
 
-order_base1c = ['gepu', 'brent', 'gdp15', 'cpi_core', 'klibor1m']
+order_base1c = ['gepu', 'brent', 'gdp', 'cpi_core', 'klibor1m']
 order_pluck1c = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'klibor1m']
 order_boombust1c = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'klibor1m']
 
-order_base1d = ['gepu', 'brent', 'gdp15', 'cpi_core', 'mgs1y']
+order_base1d = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs1y']
 order_pluck1d = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs1y']
 order_boombust1d = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs1y']
 
-order_base2a = ['gepu', 'brent', 'gdp15', 'blr']
+order_base2a = ['gepu', 'brent', 'gdp', 'blr']
 order_pluck2a = ['gepu', 'brent', 'po_pluck', 'blr']
 order_boombust2a = ['gepu', 'brent', 'po_boombust', 'blr']
 
-order_base2b = ['gepu', 'brent', 'gdp15', 'mgs10y']
+order_base2b = ['gepu', 'brent', 'gdp', 'mgs10y']
 order_pluck2b = ['gepu', 'brent', 'po_pluck', 'mgs10y']
 order_boombust2b = ['gepu', 'brent', 'po_boombust', 'mgs10y']
 
-order_base2c = ['gepu', 'brent', 'gdp15', 'klibor1m']
+order_base2c = ['gepu', 'brent', 'gdp', 'klibor1m']
 order_pluck2c = ['gepu', 'brent', 'po_pluck', 'klibor1m']
 order_boombust2c = ['gepu', 'brent', 'po_boombust', 'klibor1m']
 
-order_base2d = ['gepu', 'brent', 'gdp15', 'mgs1y']
+order_base2d = ['gepu', 'brent', 'gdp', 'mgs1y']
 order_pluck2d = ['gepu', 'brent', 'po_pluck', 'mgs1y']
 order_boombust2d = ['gepu', 'brent', 'po_boombust', 'mgs1y']
 
 
-def est_var(data, chol_order, max_lags, irf_horizon, plot_response, plot_cirf, charts_dst_prefix):
+def est_var(data, chol_order, max_lags, trend_term, irf_horizon, plot_response, plot_cirf, charts_dst_prefix):
     # prelims
     d = data.copy()
 
@@ -196,11 +208,11 @@ def est_var(data, chol_order, max_lags, irf_horizon, plot_response, plot_cirf, c
 
     # model est
     mod = sm.VAR(d)
-    res = mod.fit(maxlags=max_lags, ic='aic')
+    res = mod.fit(maxlags=max_lags, ic='hqic', trend=trend_term)
 
     # back out IRF
     irf = res.irf(irf_horizon)
-    fig_irf = irf.plot(orth=True, response=plot_response, stderr_type='mc')
+    fig_irf = irf.plot(orth=True, response=plot_response, stderr_type='asym')  # 'asym' 'mc'
     fig_irf.savefig(fname=charts_dst_prefix + '_OIRF.png')
 
     # cumulative IRF
@@ -218,16 +230,18 @@ def est_var(data, chol_order, max_lags, irf_horizon, plot_response, plot_cirf, c
 mod_var_base1a, res_var_base1a, irf_var_base1a, fig_irf_var_base1a, fig_cirf_var_base1a = est_var(
     data=df,
     chol_order=order_base1a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base1a'
 )
 mod_var_pluck1a, res_var_pluck1a, irf_var_pluck1a, fig_irf_var_pluck1a, fig_cirf_var_pluck1a = est_var(
     data=df,
     chol_order=order_pluck1a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -236,7 +250,8 @@ mod_var_pluck1a, res_var_pluck1a, irf_var_pluck1a, fig_irf_var_pluck1a, fig_cirf
 mod_var_boombust1a, res_var_boombust1a, irf_var_boombust1a, fig_irf_var_boombust1a, fig_cirf_var_boombust1a = est_var(
     data=df,
     chol_order=order_boombust1a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -247,16 +262,18 @@ mod_var_boombust1a, res_var_boombust1a, irf_var_boombust1a, fig_irf_var_boombust
 mod_var_base1b, res_var_base1b, irf_var_base1b, fig_irf_var_base1b, fig_cirf_var_base1b = est_var(
     data=df,
     chol_order=order_base1b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base1b'
 )
 mod_var_pluck1b, res_var_pluck1b, irf_var_pluck1b, fig_irf_var_pluck1b, fig_cirf_var_pluck1b = est_var(
     data=df,
     chol_order=order_pluck1b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -265,7 +282,8 @@ mod_var_pluck1b, res_var_pluck1b, irf_var_pluck1b, fig_irf_var_pluck1b, fig_cirf
 mod_var_boombust1b, res_var_boombust1b, irf_var_boombust1b, fig_irf_var_boombust1b, fig_cirf_var_boombust1b = est_var(
     data=df,
     chol_order=order_boombust1b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -276,16 +294,18 @@ mod_var_boombust1b, res_var_boombust1b, irf_var_boombust1b, fig_irf_var_boombust
 mod_var_base1c, res_var_base1c, irf_var_base1c, fig_irf_var_base1c, fig_cirf_var_base1c = est_var(
     data=df,
     chol_order=order_base1c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base1c'
 )
 mod_var_pluck1c, res_var_pluck1c, irf_var_pluck1c, fig_irf_var_pluck1c, fig_cirf_var_pluck1c = est_var(
     data=df,
     chol_order=order_pluck1c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -294,7 +314,8 @@ mod_var_pluck1c, res_var_pluck1c, irf_var_pluck1c, fig_irf_var_pluck1c, fig_cirf
 mod_var_boombust1c, res_var_boombust1c, irf_var_boombust1c, fig_irf_var_boombust1c, fig_cirf_var_boombust1c = est_var(
     data=df,
     chol_order=order_boombust1c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -305,16 +326,18 @@ mod_var_boombust1c, res_var_boombust1c, irf_var_boombust1c, fig_irf_var_boombust
 mod_var_base1d, res_var_base1d, irf_var_base1d, fig_irf_var_base1d, fig_cirf_var_base1d = est_var(
     data=df,
     chol_order=order_base1d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base1d'
 )
 mod_var_pluck1d, res_var_pluck1d, irf_var_pluck1d, fig_irf_var_pluck1d, fig_cirf_var_pluck1d = est_var(
     data=df,
     chol_order=order_pluck1d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -323,7 +346,8 @@ mod_var_pluck1d, res_var_pluck1d, irf_var_pluck1d, fig_irf_var_pluck1d, fig_cirf
 mod_var_boombust1d, res_var_boombust1d, irf_var_boombust1d, fig_irf_var_boombust1d, fig_cirf_var_boombust1d = est_var(
     data=df,
     chol_order=order_boombust1d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -334,16 +358,18 @@ mod_var_boombust1d, res_var_boombust1d, irf_var_boombust1d, fig_irf_var_boombust
 mod_var_base2a, res_var_base2a, irf_var_base2a, fig_irf_var_base2a, fig_cirf_var_base2a = est_var(
     data=df,
     chol_order=order_base2a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base2a'
 )
 mod_var_pluck2a, res_var_pluck2a, irf_var_pluck2a, fig_irf_var_pluck2a, fig_cirf_var_pluck2a = est_var(
     data=df,
     chol_order=order_pluck2a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -352,7 +378,8 @@ mod_var_pluck2a, res_var_pluck2a, irf_var_pluck2a, fig_irf_var_pluck2a, fig_cirf
 mod_var_boombust2a, res_var_boombust2a, irf_var_boombust2a, fig_irf_var_boombust2a, fig_cirf_var_boombust2a = est_var(
     data=df,
     chol_order=order_boombust2a,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -363,16 +390,18 @@ mod_var_boombust2a, res_var_boombust2a, irf_var_boombust2a, fig_irf_var_boombust
 mod_var_base2b, res_var_base2b, irf_var_base2b, fig_irf_var_base2b, fig_cirf_var_base2b = est_var(
     data=df,
     chol_order=order_base2b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base2b'
 )
 mod_var_pluck2b, res_var_pluck2b, irf_var_pluck2b, fig_irf_var_pluck2b, fig_cirf_var_pluck2b = est_var(
     data=df,
     chol_order=order_pluck2b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -382,7 +411,8 @@ mod_var_pluck2b, res_var_pluck2b, irf_var_pluck2b, fig_irf_var_pluck2b, fig_cirf
 mod_var_boombust2b, res_var_boombust2b, irf_var_boombust2b, fig_irf_var_boombust2b, fig_cirf_var_boombust2b = est_var(
     data=df,
     chol_order=order_boombust2b,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -393,16 +423,18 @@ mod_var_boombust2b, res_var_boombust2b, irf_var_boombust2b, fig_irf_var_boombust
 mod_var_base2c, res_var_base2c, irf_var_base2c, fig_irf_var_base2c, fig_cirf_var_base2c = est_var(
     data=df,
     chol_order=order_base2c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base2c'
 )
 mod_var_pluck2c, res_var_pluck2c, irf_var_pluck2c, fig_irf_var_pluck2c, fig_cirf_var_pluck2c = est_var(
     data=df,
     chol_order=order_pluck2c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -412,7 +444,8 @@ mod_var_pluck2c, res_var_pluck2c, irf_var_pluck2c, fig_irf_var_pluck2c, fig_cirf
 mod_var_boombust2c, res_var_boombust2c, irf_var_boombust2c, fig_irf_var_boombust2c, fig_cirf_var_boombust2c = est_var(
     data=df,
     chol_order=order_boombust2c,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -423,16 +456,18 @@ mod_var_boombust2c, res_var_boombust2c, irf_var_boombust2c, fig_irf_var_boombust
 mod_var_base2d, res_var_base2d, irf_var_base2d, fig_irf_var_base2d, fig_cirf_var_base2d = est_var(
     data=df,
     chol_order=order_base2d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
-    plot_response='gdp15',
+    plot_response='gdp',
     plot_cirf=False,
     charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Base2d'
 )
 mod_var_pluck2d, res_var_pluck2d, irf_var_pluck2d, fig_irf_var_pluck2d, fig_cirf_var_pluck2d = est_var(
     data=df,
     chol_order=order_pluck2d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_pluck',
     plot_cirf=False,
@@ -442,7 +477,8 @@ mod_var_pluck2d, res_var_pluck2d, irf_var_pluck2d, fig_irf_var_pluck2d, fig_cirf
 mod_var_boombust2d, res_var_boombust2d, irf_var_boombust2d, fig_irf_var_boombust2d, fig_cirf_var_boombust2d = est_var(
     data=df,
     chol_order=order_boombust2d,
-    max_lags=4,
+    max_lags=max_lags_choice,
+    trend_term=trend_term_choice,
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
@@ -656,7 +692,7 @@ irfplot_lp_boombust1c = lp.IRFPlot(
     out_name='ComparingPO_SupplyDemand_LP_BoomBust1c_IRF'
 )
 
-# 1d: All 5 variables, Core CPI, MP = MGS1Y 
+# 1d: All 5 variables, Core CPI, MP = MGS1Y
 irf_lp_base1d = lp.TimeSeriesLP(
     data=df,  # input dataframe
     Y=order_base1d,  # variables in the model

@@ -83,7 +83,7 @@ df_ceic = ceic2pandas_ts(series_id, start_date=date(1991, 1, 1)).fillna(method='
 dict_ceic_rename = {'Consumer Price Index: YoY: Quarterly: Malaysia': 'cpi_yoy',
                     'Core CPI: YoY: Quarterly: Malaysia': 'cpi_core_yoy',
                     'Producer Price Index: YoY: Quarterly: Malaysia': 'ppi_yoy',
-                    'MY: (DC)Producer Price Index: YoY' : 'ppi_old_yoy',
+                    '(DC)Producer Price Index: YoY': 'ppi_old_yoy',
                     'Unemployment Rate': 'ur',
                     'MIER: Capacity Utilization Rate: Month Average': 'caputil',
                     'Industrial Production Index: YoY: Quarterly: Malaysia': 'ipi_yoy',
@@ -262,7 +262,7 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
                cap=j)
 
 # Plot lag1
-time.sleep(10)
+time.sleep(15)
 list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag1]
 list_suffixes = list_y_cols_lag1.copy()
 scatterplots(
@@ -286,7 +286,7 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
                cap=j)
 
 # Plot lag2
-time.sleep(10)
+time.sleep(15)
 list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag2]
 list_suffixes = list_y_cols_lag2.copy()
 scatterplots(
@@ -363,7 +363,7 @@ list_x_nice_names_others = ['Unemployment Rate YoY',
                             'Real GDP YoY',
                             'Unemployment Rate YoY']
 # Plot
-time.sleep(10)
+time.sleep(15)
 list_main_titles=[y + ' Against ' + x for y, x in zip(list_y_nice_names_others, list_x_nice_names_others)]
 list_suffixes = ['PCurveUR_Core',
                  'PCurveUR_Headline',

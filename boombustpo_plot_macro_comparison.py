@@ -83,7 +83,7 @@ df_ceic = ceic2pandas_ts(series_id, start_date=date(1991, 1, 1)).fillna(method='
 dict_ceic_rename = {'Consumer Price Index: YoY: Quarterly: Malaysia': 'cpi_yoy',
                     'Core CPI: YoY: Quarterly: Malaysia': 'cpi_core_yoy',
                     'Producer Price Index: YoY: Quarterly: Malaysia': 'ppi_yoy',
-                    'MY: (DC)Producer Price Index: YoY' : 'ppi_old_yoy',
+                    '(DC)Producer Price Index: YoY': 'ppi_old_yoy',
                     'Unemployment Rate': 'ur',
                     'MIER: Capacity Utilization Rate: Month Average': 'caputil',
                     'Industrial Production Index: YoY: Quarterly: Malaysia': 'ipi_yoy',
@@ -240,14 +240,14 @@ def scatterplots(data_full,
         fig.write_html('Output/BoomBustPO_MacroComparison_' + output_suffix + '.html')
 
 # Plot contemporaneous
-list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names]
+list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names]
 list_suffixes = list_y_cols.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Current Output Gap %'] * 7,
+    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
@@ -263,15 +263,15 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
                cap=j)
 
 # Plot lag1
-time.sleep(10)
-list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names_lag1]
+time.sleep(15)
+list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag1]
 list_suffixes = list_y_cols_lag1.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Current Output Gap %'] * 7,
+    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
@@ -287,15 +287,15 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
                cap=j)
 
 # Plot lag2
-time.sleep(10)
-list_main_titles=['Current Output Gap versus ' + i for i in list_y_nice_names_lag2]
+time.sleep(15)
+list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag2]
 list_suffixes = list_y_cols_lag2.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Current Output Gap %'] * 7,
+    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
     y_nice_names = list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,

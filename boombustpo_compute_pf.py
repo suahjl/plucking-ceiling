@@ -51,8 +51,12 @@ df = df.set_index('quarter')
 list_col_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
 list_col_ln_trend = [i + '_trend' for i in list_col_ln]
 for i, j in zip(list_col_ln, list_col_ln_trend):
-    cycle, trend = sm.filters.hpfilter(df.loc[~df[i].isna(), i], lamb=1600)
+    cycle, trend = sm.filters.hpfilter(df.loc[~df[i].isna(), i], lamb=11200)
     df[j] = trend  # don't replace original with trend component
+# Hamilton version
+# for i, j in zip(list_col_ln, list_col_ln_trend):
+#     cycle, trend = hamilton_filter(df[i], h=8, p=4)  # 2 years (2 for annual, 8 for quarter, 24 for monthly, ...)
+#     df[j] = trend  # don't replace original with trend component
 
 
 # IV --- Production function estimation
@@ -66,8 +70,12 @@ def prodfunc_po(data):
     d['ln_tfp'] = d['ln_gdp'] - d['implied_y']  # ln(tfp)
 
     # TFP trend
-    cycle, trend = sm.filters.hpfilter(d.loc[~d['ln_tfp'].isna(), 'ln_tfp'], lamb=1600)  # deals with NA
+    cycle, trend = sm.filters.hpfilter(d.loc[~d['ln_tfp'].isna(), 'ln_tfp'], lamb=11200)  # deals with NA
     d['ln_tfp_trend'] = trend  # don't replace original with trend component
+
+    # hamilton version
+    # cycle, trend = hamilton_filter(d['ln_tfp'], h=8, p=4)  # 2 years (2 for annual, 8 for quarter, 24 for monthly, ...)
+    # d['ln_tfp_trend'] = trend  # don't replace original with trend component
 
     # Calculate potential output
     d['ln_po'] = d['ln_tfp_trend'] + \
