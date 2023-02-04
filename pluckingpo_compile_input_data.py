@@ -26,8 +26,7 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
-use_forecast = False  # public or internal use
-Ceic.login("suahjinglian@bnm.gov.my", "dream1234")  # suahjinglian@bnm.gov.my
+Ceic.login("", "")
 
 # I --- Functions
 

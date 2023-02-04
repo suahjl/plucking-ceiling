@@ -76,7 +76,7 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
 
 # II --- Data
 # CEIC
-Ceic.login("suahjinglian@bnm.gov.my", "dream1234")  # login to CEIC
+Ceic.login("", "")  # login to CEIC
 series_id = pd.read_csv('seriesids_macrocomparison.txt', sep=',')
 series_id = list(series_id['series_id'])
 df_ceic = ceic2pandas_ts(series_id, start_date=date(1991, 1, 1)).fillna(method='ffill')

@@ -20,7 +20,6 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
-use_forecast = False  # public or internal use
 
 # I --- Functions
 
@@ -70,7 +69,7 @@ def telsendmsg(conf='', msg=''):
 
 # II --- Load data
 # Data for NKPC
-Ceic.login("suahjinglian@bnm.gov.my", "dream1234")  # login to CEIC
+Ceic.login("", "")  # login to CEIC
 series_id = pd.read_csv('ceic_seriesid_forkf.txt', sep='|')
 series_id = list(series_id['series_id'])
 df_ceic = ceic2pandas_ts(series_id, start_date=T_lb_day).fillna(method='ffill')

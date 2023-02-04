@@ -25,7 +25,7 @@ tminus = date(1948, 1, 1)
 tfin = date(2022, 9, 30)
 col_arrangement = ['country', 'month'] + list(seriesid_labels.columns)
 
-Ceic.login("suahjinglian@bnm.gov.my ", "dream1234")
+Ceic.login("", "")
 
 # I --- Functions
 

@@ -25,7 +25,7 @@ T_lb = '1995Q1'  # 1995Q1
 T_ub = '2022Q3'  # '2022Q3' '2019Q4'
 T_lb_day = date(1995, 1, 1)
 T_ub_day = date(2022, 9, 30)  # date(2022, 9, 30)
-Ceic.login("suahjinglian@bnm.gov.my", "dream1234")  # suahjinglian@bnm.gov.my
+Ceic.login("", "") 
 
 # I --- Functions
 
