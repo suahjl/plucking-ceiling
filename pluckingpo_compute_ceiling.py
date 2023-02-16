@@ -18,6 +18,9 @@ import dataframe_image as dfi
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -25,6 +28,12 @@ time_start = time.time()
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+elif not use_forecast:
+    file_suffix_fcast = ''
 
 # I --- Functions
 
@@ -48,7 +57,7 @@ def telsendmsg(conf='', msg=''):
                        messages=[msg])
 
 # II --- Load data
-df = pd.read_parquet('pluckingpo_input_data.parquet')
+df = pd.read_parquet('pluckingpo_input_data' + file_suffix_fcast + '.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
@@ -413,23 +422,23 @@ df_hd = prodfunc_histdecomp(input=df_pd)
 # post-update frame with bounds (useful for plotting logs, and ceilings of K and N)
 df = df.reset_index()
 df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('pluckingpo_estimates.parquet', compression='brotli')
+df.to_parquet('pluckingpo_estimates' + file_suffix_fcast + '.parquet', compression='brotli')
 # post_update frame without bounds (useful for plotting logs)
 df_nobound = df_nobound.reset_index()
 df_nobound['quarter'] = df_nobound['quarter'].astype('str')
-df.to_parquet('pluckingpo_estimates_nobounds.parquet', compression='brotli')
+df_nobound.to_parquet('pluckingpo_estimates_nobounds' + file_suffix_fcast + '.parquet', compression='brotli')
 # update process
 df_update_ceiling = df_update_ceiling.reset_index()
 df_update_ceiling['quarter'] = df_update_ceiling['quarter'].astype('str')
-df_update_ceiling.to_parquet('pluckingpo_updateceiling.parquet', compression='brotli')
+df_update_ceiling.to_parquet('pluckingpo_updateceiling' + file_suffix_fcast + '.parquet', compression='brotli')
 # production function
 df_pd = df_pd.reset_index()
 df_pd['quarter'] = df_pd['quarter'].astype('str')
-df_pd.to_parquet('pluckingpo_estimates_pf.parquet', compression='brotli')
+df_pd.to_parquet('pluckingpo_estimates_pf' + file_suffix_fcast + '.parquet', compression='brotli')
 # production function decomp
 df_hd = df_hd.reset_index()
 df_hd['quarter'] = df_hd['quarter'].astype('str')
-df_hd.to_parquet('pluckingpo_estimates_pf_hd.parquet', compression='brotli')
+df_hd.to_parquet('pluckingpo_estimates_pf_hd' + file_suffix_fcast + '.parquet', compression='brotli')
 
 telsendmsg(conf=tel_config,
            msg='pluckingpo_compute_ceiling: COMPLETED')

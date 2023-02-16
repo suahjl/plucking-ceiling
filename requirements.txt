@@ -11,3 +11,4 @@ openpyxl
 kaleido
 pillow
 localprojections
+python-dotenv

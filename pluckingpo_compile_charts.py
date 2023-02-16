@@ -12,6 +12,9 @@ import telegram_send
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -19,6 +22,14 @@ time_start = time.time()
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+    fcast_start = '2023Q1'
+    fcast_start_int = 13
+elif not use_forecast:
+    file_suffix_fcast = ''
 
 # I --- Functions
 
@@ -64,26 +75,44 @@ def pil_img2pdf(list_images, extension='png', img_path='Output/', pdf_name='Pluc
 
 # II --- Compile
 
-
-seq_output = [
-    'PluckingPO_UpdateCeiling', 'PluckingPO_HardAndNoBound', 'PluckingPO_HardAndNoBound_Diff',
-    'PluckingPO_ObsCeiling_GDP', 'PluckingPO_ObsCeiling_Labour', 'PluckingPO_ObsCeiling_Capital',
-    'PluckingPO_ObsCeiling_TFP', 'PluckingPO_ObsCeiling_OG', 'PluckingPO_ObsCeiling_OG_Norm',
-    'PluckingPO_HistDecomp_Ceiling', 'PluckingPO_HistDecomp_Obs',
-    'PluckingPO_ObsCeiling_CrisisRecoveries',
-    # 'PluckingPO_Scatter_ln_gdp15_ExpCon', 'PluckingPO_Scatter_ln_gdp15_ConExp',
-    # 'PluckingPO_Scatter_ln_labour_ExpCon', 'PluckingPO_Scatter_ln_labour_ConExp',
-    # 'PluckingPO_Scatter_ln_employment_ExpCon', 'PluckingPO_Scatter_ln_employment_ConExp',
-    # 'PluckingPO_ExpConTable_ln_gdp15', 'PluckingPO_ConExpTable_ln_gdp15',
-    # 'PluckingPO_ExpConTable_ln_labour', 'PluckingPO_ConExpTable_ln_labour',
-    # 'PluckingPO_ExpConTable_ln_employment', 'PluckingPO_ConExpTable_ln_employment'
-]
+if not use_forecast:
+    seq_output = [
+        'PluckingPO_UpdateCeiling_Decomp',
+        'PluckingPO_HardAndNoBound',
+        'PluckingPO_HardAndNoBound_Diff',
+        'PluckingPO_ObsCeiling_GDP',
+        'PluckingPO_ObsCeiling_Labour',
+        'PluckingPO_ObsCeiling_Capital',
+        'PluckingPO_ObsCeiling_TFP',
+        'PluckingPO_ObsCeiling_OG',
+        'PluckingPO_ObsCeiling_OG_Norm',
+        'PluckingPO_HistDecomp_Ceiling',
+        'BoomBustPO_HistDecomp_PO',
+        'PluckingPO_HistDecomp_Obs',
+        'PluckingPO_ObsCeiling_CrisisRecoveries',
+    ]
+if use_forecast:
+    seq_output = [
+        'PluckingPO_UpdateCeiling_Decomp' + file_suffix_fcast,
+        'PluckingPO_HardAndNoBound' + file_suffix_fcast,
+        'PluckingPO_HardAndNoBound_Diff' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_GDP' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_Labour' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_Capital' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_TFP' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_OG' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_OG_Norm' + file_suffix_fcast,
+        'PluckingPO_HistDecomp_Ceiling' + file_suffix_fcast,
+        'BoomBustPO_HistDecomp_PO' + file_suffix_fcast,
+        'PluckingPO_HistDecomp_Obs' + file_suffix_fcast,
+        'PluckingPO_ObsCeiling_CrisisRecoveries' + file_suffix_fcast
+    ]
 pil_img2pdf(list_images=seq_output,
             img_path='Output/',
             extension='png',
-            pdf_name='PluckingPO_AllCharts')
+            pdf_name='PluckingPO_AllCharts' + file_suffix_fcast)
 telsendfiles(conf=tel_config,
-             path='Output/PluckingPO_AllCharts.pdf',
+             path='Output/PluckingPO_AllCharts' + file_suffix_fcast + '.pdf',
              cap='All charts from the PluckingPO estimation flow')
 
 

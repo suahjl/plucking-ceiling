@@ -15,6 +15,9 @@ import time
 import re
 from ceic_api_client.pyceic import Ceic
 import localprojections as lp
+from dotenv import load_dotenv
+import os
+import ast
 # import pyeviews as evp
 
 time_start = time.time()
@@ -22,10 +25,11 @@ time_start = time.time()
 # 0 --- Main settings
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'  # 1995Q1
-T_ub = '2022Q3'  # '2022Q3' '2019Q4'
+T_ub = '2022Q4'  # '2022Q3' '2019Q4'
 T_lb_day = date(1995, 1, 1)
-T_ub_day = date(2022, 9, 30)  # date(2022, 9, 30)
-Ceic.login("", "") 
+T_ub_day = date(2022, 12, 31)  # date(2022, 9, 30)
+load_dotenv()
+Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
 
 # I --- Functions
 

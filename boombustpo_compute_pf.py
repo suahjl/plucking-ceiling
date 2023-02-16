@@ -11,6 +11,9 @@ import dataframe_image as dfi
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -19,7 +22,13 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
-use_forecast = False  # public or internal use
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+    fcast_start = '2023Q1'
+elif not use_forecast:
+    file_suffix_fcast = ''
 
 # I --- Functions
 
@@ -42,8 +51,9 @@ def telsendmsg(conf='', msg=''):
     telegram_send.send(conf=conf,
                        messages=[msg])
 
+
 # II --- Load data
-df = pd.read_parquet('pluckingpo_input_data.parquet')  # use same open data input
+df = pd.read_parquet('pluckingpo_input_data' + file_suffix_fcast + '.parquet')  # use same data input as for plucking
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
@@ -137,11 +147,11 @@ df_pf_histdecomp = prodfunc_histdecomp(df_pf)
 
 df_pf = df_pf.reset_index()
 df_pf['quarter'] = df_pf['quarter'].astype('str')
-df_pf.to_parquet('boombustpo_estimates_pf.parquet', compression='brotli')
+df_pf.to_parquet('boombustpo_estimates_pf' + file_suffix_fcast + '.parquet', compression='brotli')
 
 df_pf_histdecomp = df_pf_histdecomp.reset_index()
 df_pf_histdecomp['quarter'] = df_pf_histdecomp['quarter'].astype('str')
-df_pf_histdecomp.to_parquet('boombustpo_estimates_pf_hd.parquet', compression='brotli')
+df_pf_histdecomp.to_parquet('boombustpo_estimates_pf_hd' + file_suffix_fcast + '.parquet', compression='brotli')
 
 # VI --- Notify
 telsendmsg(conf=tel_config,

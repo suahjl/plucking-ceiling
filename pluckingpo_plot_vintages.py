@@ -18,6 +18,9 @@ import dataframe_image as dfi
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -26,12 +29,12 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 
-list_T_ub = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q3']
+list_T_ub = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q4']
 list_colours = ['lightcoral', 'crimson', 'red', 'steelblue', 'darkblue', 'gray']
 list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid']
 dict_revision_pairs = {'2009Q3': '2007Q2',
                        '2019Q4': '2015Q4',
-                       '2022Q3': '2019Q4'}
+                       '2022Q4': '2019Q4'}
 list_threshold = [1, 1, 1, 1, 1, 0.8]
 list_interpolate_method = ['slinear', 'slinear', 'slinear', 'slinear', 'slinear', 'quadratic']
 

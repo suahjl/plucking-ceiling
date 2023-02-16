@@ -18,6 +18,9 @@ from PIL import Image
 from tqdm import tqdm
 import time
 from ceic_api_client.pyceic import Ceic
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -26,7 +29,9 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
-Ceic.login("", "")
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
 
 # I --- Functions
 
@@ -77,7 +82,6 @@ def telsendmsg(conf='', msg=''):
 
 # II --- Wrangling
 # Base CEIC data --- output (quarterly), labour force (quarterly), net capital stock (annual)
-Ceic.login("suahjinglian@bnm.gov.my ", "dream1234")  # log into CEIC
 series_ids = pd.read_csv('ceic_seriesid_pluckingpo.txt', sep='|')
 series_ids = list(series_ids['series_id'])
 df_ceic = ceic2pandas_ts(input=series_ids, start_date=T_lb_day)
@@ -189,6 +193,41 @@ for i in list_col:
     sadj_seasadj = sadj_res.seasadj
     df.loc[:, i] = sadj_seasadj  # Ideally, use MYS-specific calendar effects
 
+# FORECAST
+if use_forecast:
+    # gdp fcast
+    gdp_fcast = pd.read_csv('Forecast/gdp_qoqsa_forecast.csv')
+    gdp_fcast['quarter'] = pd.to_datetime(gdp_fcast['quarter']).dt.to_period('q')
+    gdp_fcast = gdp_fcast.set_index('quarter')
+    fcast_iteration = len(gdp_fcast)
+    df = pd.concat([df, gdp_fcast], axis=1)
+    round = 1
+    while round <= fcast_iteration:
+        df.loc[df['gdp'].isna(), 'gdp'] = df['gdp'].shift(1) * (1 + (df['gdp_qoqsa_forecast'] / 100)) # back out SA levels
+        round += 1
+    # nks fcast
+    gfcf_fcast = pd.read_csv('Forecast/gfcf_sa_forecast.csv')
+    gfcf_fcast['quarter'] = pd.to_datetime(gfcf_fcast['quarter']).dt.to_period('q')
+    gfcf_fcast = gfcf_fcast.set_index('quarter')
+    df = pd.concat([df, gfcf_fcast], axis=1)
+    round = 1
+    while round <= fcast_iteration:
+        df.loc[df['nks'].isna(), 'nks'] = \
+            df['nks'].shift(1) + df['gfcf_sa_forecast'] - \
+            ((df['icfc_assumption'] / 100 )* df['nks'].shift(1))
+        round += 1
+    # lforce fcast
+    lforce_fcast = pd.read_csv('Forecast/lforce_forecast.csv')
+    lforce_fcast['quarter'] = pd.to_datetime(lforce_fcast['quarter']).dt.to_period('q')
+    lforce_fcast = lforce_fcast.set_index('quarter')
+    df = pd.concat([df, lforce_fcast], axis=1)
+    df.loc[df['lforce'].isna(), 'lforce'] = df['lforce_forecast'].copy()
+    # ffill alpha
+    df['alpha'] = df['alpha'].fillna(method='ffill')
+    # clear columns
+    for i in ['lforce_forecast', 'gfcf_sa_forecast', 'icfc_assumption', 'gdp_qoqsa_forecast']:
+        del df[i]
+
 # Take logs
 list_col = ['gdp', 'lforce', 'nks']
 list_col_ln = ['ln_' + i for i in list_col]
@@ -202,12 +241,19 @@ for i, j in zip(list_col_ln, list_col_ln_diff):
 
 
 # III --- save interim data set
-df = df.reset_index()
-df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('pluckingpo_input_data.parquet', compression='brotli')
+if not use_forecast:
+    df = df.reset_index()
+    df['quarter'] = df['quarter'].astype('str')
+    df.to_parquet('pluckingpo_input_data.parquet', compression='brotli')
+    telsendmsg(conf=tel_config,
+               msg='pluckingpo-compile-input-data: COMPLETED')
 
-telsendmsg(conf=tel_config,
-           msg='pluckingpo-compile-input-data: COMPLETED')
+if use_forecast:
+    df = df.reset_index()
+    df['quarter'] = df['quarter'].astype('str')
+    df.to_parquet('pluckingpo_input_data_forecast.parquet', compression='brotli')
+    telsendmsg(conf=tel_config,
+               msg='pluckingpo-compile-input-data: COMPLETED (WITH FORECAST)')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

@@ -10,16 +10,28 @@ import telegram_send
 import dataframe_image as dfi
 import time
 from tqdm import tqdm
-
+from dotenv import load_dotenv
+import os
+import ast
 import pyeviews as evp
 
 time_start = time.time()
 
 # 0 --- Main settings
+load_dotenv()
 t_start = '1995Q4'
-t_output_start = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
+t_burnin = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'  # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+use_forecast = True
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+    fcast_start = '2023Q1'
+    t_burnin = str(pd.to_datetime(t_start).to_period('Q') + 44)  # 44Q burn-in if include forecasts (end-point issues)
+elif not use_forecast:
+    file_suffix_fcast = ''
+
 
 # I --- Functions
 
@@ -44,7 +56,7 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df = pd.read_parquet('boombustpo_input_data_kf.parquet')
+df = pd.read_parquet('boombustpo_input_data_kf' + file_suffix_fcast + '.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
@@ -237,8 +249,12 @@ list_col_output = ['gdp', 'po_pf', 'po_kf',
                    'com_2q_gap', 'usdmyr_gap', 'ln_cpi_core_d']
 df = df[list_col_output]
 
+# Blank out po_kf during burn-in period
+df.loc[df.index <= t_burnin, 'po_kf'] = np.nan
+
 # Calculate averages of methods
 df['po_avg'] = (df['po_pf'] + df['po_kf']) / 2
+df.loc[df.index <= t_burnin, 'po_avg'] = df['po_pf'].copy()  # for burn-in period, take PF values
 df['output_gap_avg'] = (df['gdp'] / df['po_avg'] - 1)  # will be multiplied by 100 next
 
 # Convert gaps (and log diff of CPI) into percentages
@@ -261,7 +277,7 @@ for i, j in zip(list_col, list_col_yoy):
 # VI --- Export data frames
 df = df.reset_index()
 df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('boombustpo_estimates_kf.parquet')
+df.to_parquet('boombustpo_estimates_kf' + file_suffix_fcast + '.parquet')
 
 # V --- Notify
 telsendmsg(conf=tel_config,

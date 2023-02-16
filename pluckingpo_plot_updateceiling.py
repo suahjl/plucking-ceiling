@@ -18,6 +18,9 @@ import dataframe_image as dfi
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -26,7 +29,13 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
-use_forecast = False  # public or internal use
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+    fcast_start = '2023Q1'
+elif not use_forecast:
+    file_suffix_fcast = ''
 
 # I --- Functions
 
@@ -49,8 +58,9 @@ def telsendmsg(conf='', msg=''):
     telegram_send.send(conf=conf,
                        messages=[msg])
 
+
 # II --- Load data
-df_update_ceiling = pd.read_parquet('pluckingpo_updateceiling.parquet')
+df_update_ceiling = pd.read_parquet('pluckingpo_updateceiling' + file_suffix_fcast + '.parquet')
 df_update_ceiling['quarter'] = pd.to_datetime(df_update_ceiling['quarter']).dt.to_period('Q')
 df_update_ceiling = df_update_ceiling.set_index('quarter')
 
@@ -97,23 +107,51 @@ fig_update_ceiling_decomp.add_trace(
             line=dict(color='crimson', width=1)
         )
     )
+if use_forecast:
+    max_everything = pd.concat([df_update_ceiling['ln_gdp_ceiling'],
+                                df_update_ceiling['ln_gdp_ceiling_initial']]).max().max()
+    min_everything = pd.concat([df_update_ceiling['ln_gdp_ceiling'],
+                                df_update_ceiling['ln_gdp_ceiling_initial']]).min().min()
+    df_update_ceiling['_shadetop'] = max_everything  # max of entire dataframe
+    df_update_ceiling.loc[df_update_ceiling.index < fcast_start, '_shadetop'] = 0
+    fig_update_ceiling_decomp.add_trace(
+        go.Bar(
+            x=df_update_ceiling.index.astype('str'),
+            y=df_update_ceiling['_shadetop'],
+            name='Forecast',
+            width=1,
+            marker=dict(color='lightgrey', opacity=0.3)
+        )
+    )
+    if bool(min_everything < 0):  # To avoid double shades
+        df_update_ceiling['_shadebtm'] = min_everything.min()  # min of entire dataframe
+        df_update_ceiling.loc[df_update_ceiling.index < fcast_start, '_shadebtm'] = 0
+        fig_update_ceiling_decomp.add_trace(
+            go.Bar(
+                x=df_update_ceiling.index.astype('str'),
+                y=df_update_ceiling['_shadebtm'],
+                name='Forecast',
+                width=1,
+                marker=dict(color='lightgrey', opacity=0.3)
+            )
+        )
+    fig_update_ceiling_decomp.update_yaxes(range=[min_everything, max_everything])
 fig_update_ceiling_decomp.update_layout(title='Initial and Final Estimates of Log of Output Ceiling with Decomposition',
                   yaxis_title='Natural Logs',
                   plot_bgcolor='white',
                   hovermode='x',
                   barmode='relative',
                   font=dict(size=20, color='black'))
-fig_update_ceiling_decomp.write_image('Output/' + 'PluckingPO_UpdateCeiling_Decomp' + '.png', height=768, width=1366)
-fig_update_ceiling_decomp.write_html('Output/' + 'PluckingPO_UpdateCeiling_Decomp' + '.html')
+fig_update_ceiling_decomp.write_image('Output/' + 'PluckingPO_UpdateCeiling_Decomp' + file_suffix_fcast + '.png', height=768, width=1366)
+fig_update_ceiling_decomp.write_html('Output/' + 'PluckingPO_UpdateCeiling_Decomp' + file_suffix_fcast + '.html')
 telsendimg(conf=tel_config,
-           path='Output/PluckingPO_UpdateCeiling_Decomp.png',
+           path='Output/PluckingPO_UpdateCeiling_Decomp' + file_suffix_fcast + '.png',
            cap='Initial and Final Estimates of the Log of Output Ceiling with Decomposition')
 
 
 # IV --- Notify
 telsendmsg(conf=tel_config,
            msg='pluckingpo_plot_updateceiling: COMPLETED')
-
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

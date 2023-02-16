@@ -8,6 +8,9 @@ import re
 from tqdm import tqdm
 import telegram_send
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -25,7 +28,8 @@ tminus = date(1948, 1, 1)
 tfin = date(2022, 9, 30)
 col_arrangement = ['country', 'month'] + list(seriesid_labels.columns)
 
-Ceic.login("", "")
+load_dotenv()
+Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
 
 # I --- Functions
 

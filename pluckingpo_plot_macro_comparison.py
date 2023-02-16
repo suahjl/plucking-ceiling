@@ -14,18 +14,22 @@ from PIL import Image
 from tqdm import tqdm
 import time
 from ceic_api_client.pyceic import Ceic
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
 # 0 --- Main settings
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q4'
-T_ub = '2022Q2'
+T_ub = '2022Q4'
 list_T_outliers = ['1997Q4', '1998Q1', '1998Q2', '1998Q3', '1998Q4',
                    '1999Q1', '1999Q2', '1999Q3', '1999Q4',
                    '2008Q3', '2008Q4', '2009Q1', '2009Q2', '2009Q3', '2009Q4',
                    '2020Q1', '2020Q2', '2020Q3', '2020Q4',
                    '2021Q1', '2021Q2', '2021Q3', '2021Q4']
+load_dotenv()
 
 # I --- Functions
 
@@ -76,7 +80,7 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
 
 # II --- Data
 # CEIC
-Ceic.login("", "")  # login to CEIC
+Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))  # login to CEIC
 series_id = pd.read_csv('seriesids_macrocomparison.txt', sep=',')
 series_id = list(series_id['series_id'])
 df_ceic = ceic2pandas_ts(series_id, start_date=date(1991, 1, 1)).fillna(method='ffill')

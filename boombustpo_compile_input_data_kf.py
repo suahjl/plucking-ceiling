@@ -12,6 +12,9 @@ from PIL import Image
 from ceic_api_client.pyceic import Ceic
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -20,6 +23,13 @@ tel_config = 'EcMetrics_Config_GeneralFlow.conf'
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
 show_conf_bands = False
+load_dotenv()
+use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
+if use_forecast:
+    file_suffix_fcast = '_forecast'
+    fcast_start = '2023Q1'
+elif not use_forecast:
+    file_suffix_fcast = ''
 
 # I --- Functions
 
@@ -67,9 +77,10 @@ def telsendmsg(conf='', msg=''):
     telegram_send.send(conf=conf,
                        messages=[msg])
 
+
 # II --- Load data
 # Data for NKPC
-Ceic.login("", "")  # login to CEIC
+Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
 series_id = pd.read_csv('ceic_seriesid_forkf.txt', sep='|')
 series_id = list(series_id['series_id'])
 df_ceic = ceic2pandas_ts(series_id, start_date=T_lb_day).fillna(method='ffill')
@@ -91,7 +102,7 @@ core_cpi_old = core_cpi_old.rename(columns={'cpi_core': 'cpi_core_old'})
 core_cpi_old = core_cpi_old[core_cpi_old.index >= T_lb]  # timebound
 
 # Load PF estimates
-output_pf = pd.read_parquet('boombustpo_estimates_pf.parquet')
+output_pf = pd.read_parquet('boombustpo_estimates_pf' + file_suffix_fcast + '.parquet')  # if includes forecast
 output_pf['quarter'] = pd.to_datetime(output_pf['quarter']).dt.to_period('Q')
 output_pf = output_pf.set_index('quarter')
 output_pf = output_pf.rename(columns={'output_gap': 'output_gap_pf',
@@ -152,11 +163,14 @@ df['output_gap_hp'] = cycle
 # IV --- Export data frames
 df = df.reset_index()
 df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('boombustpo_input_data_kf.parquet', compression='brotli')
+df.to_parquet('boombustpo_input_data_kf' + file_suffix_fcast + '.parquet', compression='brotli')
 
 # V --- Notify
-telsendmsg(conf=tel_config,
-           msg='boombustpo_compile_input_data_kf: COMPLETED')
-
+if not use_forecast:
+    telsendmsg(conf=tel_config,
+               msg='boombustpo_compile_input_data_kf: COMPLETED')
+if use_forecast:
+    telsendmsg(conf=tel_config,
+               msg='boombustpo_compile_input_data_kf: COMPLETED (WITH FORECAST)')
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

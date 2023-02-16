@@ -18,6 +18,9 @@ import dataframe_image as dfi
 from PIL import Image
 from tqdm import tqdm
 import time
+from dotenv import load_dotenv
+import os
+import ast
 
 time_start = time.time()
 
@@ -27,12 +30,12 @@ t_start = '1995Q4'
 t_output_start = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
 t_now = str(pd.to_datetime(str(date.today())).to_period('Q'))
-list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q2']
+list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q4']
 list_colours = ['lightcoral', 'crimson', 'red', 'steelblue', 'darkblue', 'gray']
 list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid']
 dict_revision_pairs = {'2009Q3': '2007Q2',
                        '2019Q4': '2015Q4',
-                       '2022Q2': '2019Q4'}
+                       '2022Q4': '2019Q4'}
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'  # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
 
 # I --- Functions

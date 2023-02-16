@@ -1,10 +1,3 @@
-# -------------- Allow PO to deviate from first guess based on K and N
-# -------------- Casts the bands as 'uncertainty in timing of peaks by 1Q earlier'
-# -------------- Option to show or hide confidence bands
-# -------------- Option to not show any forecasts
-# -------------- Open data version (est3)
-
-
 import pandas as pd
 import numpy as np
 from datetime import date, timedelta
@@ -58,9 +51,8 @@ def telsendmsg(conf='', msg=''):
     telegram_send.send(conf=conf,
                        messages=[msg])
 
-
 # II --- Load data
-df_hd = pd.read_parquet('pluckingpo_estimates_pf_hd' + file_suffix_fcast + '.parquet')
+df_hd = pd.read_parquet('boombustpo_estimates_pf_hd' + file_suffix_fcast + '.parquet')
 df_hd['quarter'] = pd.to_datetime(df_hd['quarter']).dt.to_period('Q')
 df_hd = df_hd.set_index('quarter')
 
@@ -69,33 +61,33 @@ df_hd = df_hd.set_index('quarter')
 
 def plot_histdecomp(input, use_forecast_choice):
     d = input.copy()
-    list_col_keep = ['gdp_yoy', 'gdp_ceiling_yoy',
-                     'capital_cont_ceiling', 'labour_cont_ceiling', 'tfp_cont_ceiling',
+    list_col_keep = ['gdp_yoy', 'po_yoy',
+                     'capital_cont_po', 'labour_cont_po', 'tfp_cont_po',
                      'capital_cont_observed', 'labour_cont_observed', 'tfp_cont_observed']
     d = d[list_col_keep]
 
     # Potential output
     fig_ceiling = go.Figure()
     fig_ceiling.add_trace(go.Scatter(x=d.index.astype('str'),
-                                     y=d['gdp_ceiling_yoy'],
-                                     name='Ceiling Output Growth',
+                                     y=d['po_yoy'],
+                                     name='Potential Output Growth',
                                      mode='lines',
                                      line=dict(width=3, color='black')))
     fig_ceiling.add_trace(go.Bar(x=d.index.astype('str'),
-                                 y=d['capital_cont_ceiling'],
-                                 name='Ceiling Capital Growth',
+                                 y=d['capital_cont_po'],
+                                 name='Capital Trend Growth',
                                  marker=dict(color='lightblue')))
     fig_ceiling.add_trace(go.Bar(x=d.index.astype('str'),
-                                 y=d['labour_cont_ceiling'],
-                                 name='Ceiling Labour Growth',
+                                 y=d['labour_cont_po'],
+                                 name='Labour Trend Growth',
                                  marker=dict(color='lightpink')))
     fig_ceiling.add_trace(go.Bar(x=d.index.astype('str'),
-                                 y=d['tfp_cont_ceiling'],
-                                 name='Ceiling TFP Growth',
+                                 y=d['tfp_cont_po'],
+                                 name='TFP Trend Growth',
                                  marker=dict(color='palegreen')))
     if use_forecast_choice:
-        max_everything = d[['gdp_ceiling_yoy', 'capital_cont_ceiling', 'labour_cont_ceiling', 'tfp_cont_ceiling']].max().max()
-        min_everything = d[['gdp_ceiling_yoy', 'capital_cont_ceiling', 'labour_cont_ceiling', 'tfp_cont_ceiling']].min().min()
+        max_everything = d[['po_yoy', 'capital_cont_po', 'labour_cont_po', 'tfp_cont_po']].max().max()
+        min_everything = d[['po_yoy', 'capital_cont_po', 'labour_cont_po', 'tfp_cont_po']].min().min()
         d['_shadetop'] = max_everything  # max of entire dataframe
         d.loc[d.index < fcast_start, '_shadetop'] = 0
         fig_ceiling.add_trace(
@@ -120,14 +112,14 @@ def plot_histdecomp(input, use_forecast_choice):
                 )
             )
         fig_ceiling.update_yaxes(range=[min_everything, max_everything])
-    fig_ceiling.update_layout(title='Historical Decomposition of Ceiling Output YoY Growth',
+    fig_ceiling.update_layout(title='Historical Decomposition of Potential Output YoY Growth',
                               yaxis_title='Percentage Point, %YoY growth',
                               barmode='relative',
                               plot_bgcolor='white',
                               hovermode='x',
                               font=dict(size=20, color='black'))
-    fig_ceiling.write_html('Output/PluckingPO_HistDecomp_Ceiling' + file_suffix_fcast + '.html')
-    fig_ceiling.write_image('Output/PluckingPO_HistDecomp_Ceiling' + file_suffix_fcast + '.png', height=768, width=1366)
+    fig_ceiling.write_html('Output/BoomBustPO_HistDecomp_PO' + file_suffix_fcast + '.html')
+    fig_ceiling.write_image('Output/BoomBustPO_HistDecomp_PO' + file_suffix_fcast + '.png', height=768, width=1366)
 
     # Observed output
     fig_ob = go.Figure()
@@ -181,22 +173,21 @@ def plot_histdecomp(input, use_forecast_choice):
                          plot_bgcolor='white',
                          hovermode='x',
                          font=dict(size=20, color='black'))
-    fig_ob.write_html('Output/PluckingPO_HistDecomp_Obs' + file_suffix_fcast + '.html')
-    fig_ob.write_image('Output/PluckingPO_HistDecomp_Obs' + file_suffix_fcast + '.png', height=768, width=1366)
+    fig_ob.write_html('Output/BoomBustPO_HistDecomp_Obs' + file_suffix_fcast + '.html')
+    fig_ob.write_image('Output/BoomBustPO_HistDecomp_Obs' + file_suffix_fcast + '.png', height=768, width=1366)
 
     return fig_ceiling, fig_ob
 
 
 fig_ceiling, fig_ob = plot_histdecomp(input=df_hd, use_forecast_choice=use_forecast)
-for i in ['Output/PluckingPO_HistDecomp_Ceiling' + file_suffix_fcast + '.png',
-          'Output/PluckingPO_HistDecomp_Obs' + file_suffix_fcast + '.png']:
+for i in ['Output/BoomBustPO_HistDecomp_PO' + file_suffix_fcast + '.png',
+          'Output/BoomBustPO_HistDecomp_Obs' + file_suffix_fcast + '.png']:
     telsendimg(conf=tel_config,
                path=i)
 
-
 # IV --- Notify
 telsendmsg(conf=tel_config,
-           msg='pluckingpo_plot_histdecomp: COMPLETED')
+           msg='boombustpo_plot_histdecomp: COMPLETED')
 
 
 # End

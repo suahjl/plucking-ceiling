@@ -13,6 +13,9 @@ import telegram_send
 import dataframe_image as dfi
 import time
 from tqdm import tqdm
+from dotenv import load_dotenv
+import os
+import ast
 
 from ceic_api_client.pyceic import Ceic
 
@@ -22,16 +25,15 @@ time_start = time.time()
 
 # 0 --- Main settings
 t_start = '1995Q4'
-t_output_start = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
+t_burnin = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
 t_now = str(pd.to_datetime(str(date.today())).to_period('Q'))
-list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q2', '2027Q4']
+list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q4']
 list_colours = ['lightcoral', 'crimson', 'red', 'steelblue', 'darkblue', 'gray', 'black']
 list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid', 'longdash']
 dict_revision_pairs = {'2009Q3': '2007Q2',
                        '2019Q4': '2015Q4',
-                       '2022Q2': '2019Q4',
-                       '2027Q4': '2022Q2'}
+                       '2022Q4': '2019Q4'}
 tel_config = 'EcMetrics_Config_GeneralFlow.conf'  # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
 
 # I --- Functions
@@ -327,8 +329,12 @@ for t_end in tqdm(list_t_ends):
                        'output_gap_pf', 'output_gap_kf']
     df = df[list_col_output]
 
+    # Blank out po_kf during burn-in period
+    df.loc[df.index <= t_burnin, 'po_kf'] = np.nan
+
     # Calculate averages of methods
     df['po_avg'] = (df['po_pf'] + df['po_kf']) / 2
+    df.loc[df.index <= t_burnin, 'po_avg'] = df['po_pf'].copy()  # for burn-in period, take PF values
     df['output_gap_avg'] = (df['gdp'] / df['po_avg'] - 1)  # will be multiplied by 100 next
 
     # Convert output gaps into percentages
