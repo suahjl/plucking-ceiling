@@ -1,0 +1,9 @@
+\beamer@sectionintoc {1}{Motivation}{2}{0}{1}
+\beamer@sectionintoc {2}{`Plucking'}{7}{0}{2}
+\beamer@sectionintoc {3}{Boom-Bust}{12}{0}{3}
+\beamer@sectionintoc {4}{Retrospective Revisions}{18}{0}{4}
+\beamer@sectionintoc {5}{Historical Decomposition}{20}{0}{5}
+\beamer@sectionintoc {6}{Empirical Regularities}{23}{0}{6}
+\beamer@sectionintoc {7}{S\&D Shocks}{27}{0}{7}
+\beamer@sectionintoc {8}{Summary}{30}{0}{8}
+\beamer@sectionintoc {9}{Replication}{31}{0}{9}

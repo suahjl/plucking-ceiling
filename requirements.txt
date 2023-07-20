@@ -1,0 +1,16 @@
+pandas
+numpy
+statsmodels
+quantecon
+plotly
+telegram-send
+dataframe-image
+tqdm
+fastparquet
+openpyxl
+kaleido
+pillow
+localprojections
+python-dotenv
+pyeviews
+qrcode
