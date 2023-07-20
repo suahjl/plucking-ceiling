@@ -203,6 +203,9 @@ old_static_*.txt
 *.log
 *.out
 *.gz
+*.toc
+*.snm
+*.nav
 
 # All data files in main directory
 *.parquet
