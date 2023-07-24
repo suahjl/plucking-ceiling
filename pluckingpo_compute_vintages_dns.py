@@ -30,13 +30,37 @@ load_dotenv()
 tel_config = os.getenv('TEL_CONFIG')
 T_lb = '1995Q1'
 T_lb_day = date(1995, 1, 1)
-use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
-if use_forecast:
-    file_suffix_fcast = '_forecast'
-elif not use_forecast:
-    file_suffix_fcast = ''
 
-downturn_threshold_choice = 0.23  # gets 1997Q4, 2008Q1, 2019Q3; and 1998Q3, 2009Q1, 2020Q2 correct
+list_T_ub = [
+    '2007Q2', '2008Q2',
+    '2009Q3', '2015Q4',
+    '2019Q4', '2022Q4'
+]
+list_colours = [
+    'lightcoral', 'crimson',
+    'red', 'steelblue',
+    'darkblue', 'gray'
+]
+list_dash_styles = [
+    'solid', 'solid',
+    'solid', 'solid',
+    'solid', 'solid'
+]
+dict_revision_pairs = {
+    '2009Q3': '2007Q2',
+    '2019Q4': '2015Q4',
+    '2022Q4': '2019Q4'
+}
+list_threshold = [
+    0.23, 0.23,
+    0.23, 0.23,
+    0.23, 0.23
+]  # 1, 1, 1, 1, 1, 0.8
+list_interpolate_method = [
+    'slinear', 'slinear',
+    'slinear', 'slinear',
+    'slinear', 'quadratic'
+]  # harmonise for ease
 
 
 # I --- Functions
@@ -62,15 +86,18 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df = pd.read_parquet('pluckingpo_input_data' + file_suffix_fcast + '.parquet')
-# df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
-df = df.reset_index(drop=True)  # so that we can work on numeric indices directly
+df_full = pd.read_parquet('pluckingpo_input_data.parquet')
+df_full['quarter'] = pd.to_datetime(df_full['quarter']).dt.to_period('Q')
+df_full = df_full.reset_index(drop=True)  # so that we can work on numeric indices directly
 
 
-# III --- Initial estimate
+# III --- Define functions for computation (only initial estimate + update + output gap; decomposition not needed)
 
 
-def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, bounds_timing_shift, hard_bound):
+def compute_ceilings(
+        data,
+        levels_labels, ref_level_label, downturn_threshold, bounds_timing_shift, hard_bound,
+        interpolation_method):
     # Deep copy
     df = data.copy()
 
@@ -322,8 +349,10 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
             single_exp = bool(df[col_epi].max() == 0)
             if not single_exp:
                 # interpolate
+                if df[col_peak].sum() == 1:  # if only 1 peak is identified, force last obs to be another peak
+                    df.iloc[-1, df.columns.get_loc(col_peak)] = 1  # only for vintage computation
                 df.loc[df[col_peak] == 1, col_ceiling] = df[col_level]  # peaks as joints
-                df[col_ceiling] = df[col_ceiling].interpolate(method='quadratic')  # too sparse for cubic
+                df[col_ceiling] = df[col_ceiling].interpolate(method=interpolation_method)  # too sparse for cubic
 
                 # end-point extrapolation
                 cepi_minusone = df[col_cepi].max() - 1
@@ -348,7 +377,7 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
 
                 # interpolate
                 df.loc[df[col_peak] == 1, col_ceiling] = df[col_level]  # peaks as joints
-                df[col_ceiling] = df[col_ceiling].interpolate(method='quadratic')  # too sparse for cubic
+                df[col_ceiling] = df[col_ceiling].interpolate(method=interpolation_method)  # too sparse for cubic
 
                 # end-point extrapolation
                 cepi_minusone = df[col_cepi].max() - 1
@@ -385,27 +414,6 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
     # Output
     return df
 
-
-list_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
-df = compute_ceilings(
-    data=df,
-    levels_labels=list_ln,
-    ref_level_label='ln_gdp',
-    downturn_threshold=downturn_threshold_choice,
-    bounds_timing_shift=-1,
-    hard_bound=True
-)
-df_nobound = compute_ceilings(
-    data=df,
-    levels_labels=list_ln,
-    ref_level_label='ln_gdp',
-    downturn_threshold=downturn_threshold_choice,
-    bounds_timing_shift=-1,
-    hard_bound=False
-)
-
-
-# IV --- Allow ceiling to vary with K and N
 
 def update_ceiling(data, option, hard_bound):
     d = data.copy()
@@ -472,108 +480,76 @@ def update_ceiling(data, option, hard_bound):
     return d, d_short
 
 
-df, df_update_ceiling = update_ceiling(data=df, option='gap', hard_bound=True)
-df_nobound, df_nobound_update_ceiling = update_ceiling(data=df_nobound, option='gap', hard_bound=False)
-
-
-# V --- Compute production function decomposition of ceiling and actual output
-
-
-def prodfunc(data):
+def output_gap(data):
     d = data.copy()
 
-    # ACTUAL
-    d['implied_y'] = (d['alpha'] / 100) * d['ln_nks'] + (1 - d['alpha'] / 100) * d['ln_lforce']
-    d['ln_tfp'] = d['ln_gdp'] - d['implied_y']  # ln(tfp)
-
-    # CEILING
-    # Calculate TFP
-    d['ln_tfp_ceiling'] = d['ln_gdp_ceiling'] - \
-                          ((d['alpha'] / 100) * d['ln_nks_ceiling']) - \
-                          (1 - d['alpha'] / 100) * d['ln_lforce_ceiling']
-    d['ln_tfp_ceiling_lb'] = d['ln_gdp_ceiling_lb'] - \
-                             ((d['alpha'] / 100) * d['ln_nks_ceiling_lb']) - \
-                             (1 - d['alpha'] / 100) * d['ln_lforce_ceiling_lb']
-    # Back out levels (PO)
     d['gdp_ceiling'] = np.exp(d['ln_gdp_ceiling'])
     d['gdp_ceiling_lb'] = np.exp(d['ln_gdp_ceiling_lb'])
+
     d['output_gap'] = 100 * (d['gdp'] / d['gdp_ceiling'] - 1)  # % PO
     d['output_gap_lb'] = 100 * (d['gdp'] / d['gdp_ceiling_lb'] - 1)  # % PO
-    d['capital_ceiling'] = np.exp(d['ln_nks_ceiling'])
-    d['capital_ceiling_lb'] = np.exp(d['ln_nks_ceiling_lb'])
-    d['labour_ceiling'] = np.exp(d['ln_lforce_ceiling'])
-    d['labour_ceiling_lb'] = np.exp(d['ln_lforce_ceiling_lb'])
-    d['tfp_ceiling'] = np.exp(d['ln_tfp_ceiling'])
-    d['tfp_ceiling_lb'] = np.exp(d['ln_tfp_ceiling_lb'])
-
-    # Back out levels (observed output)
-    d['capital_observed'] = np.exp(d['ln_nks'])
-    d['labour_observed'] = np.exp(d['ln_lforce'])
-    d['tfp_observed'] = np.exp(d['ln_tfp'])
 
     # trim data frame
     list_col_keep = ['quarter',
                      'output_gap', 'output_gap_lb',
                      'gdp_ceiling', 'gdp_ceiling_lb',
-                     'gdp',
-                     'capital_ceiling', 'capital_ceiling_lb',
-                     'labour_ceiling', 'labour_ceiling_lb',
-                     'tfp_ceiling', 'tfp_ceiling_lb',
-                     'capital_observed', 'labour_observed', 'tfp_observed',
-                     'alpha']
+                     'gdp']
     d = d[list_col_keep]
 
     return d
 
 
-def prodfunc_histdecomp(input):
-    print('\n Uses output dataframe from prodfunc_po() ' +
-          'to calculate the historical decomposition of potential and actual output')
-    d = input.copy()
+# IV --- Computation
+round = 1
+for T_ub, interpolate_method, threshold in zip(list_T_ub, list_interpolate_method, list_threshold):
+    # For tracking
+    print('Currently ' + T_ub + ' vintage')
 
-    # Calculate YoY growth
-    list_levels = ['gdp_ceiling', 'gdp',
-                   'capital_ceiling', 'labour_ceiling', 'tfp_ceiling',
-                   'capital_observed', 'labour_observed', 'tfp_observed']
-    list_yoy = [i + '_yoy' for i in list_levels]
-    for i, j in zip(list_levels, list_yoy):
-        d[j] = 100 * ((d[i] / d[i].shift(4)) - 1)
+    # Generate vintage
+    df = df_full[df_full['quarter'] <= T_ub]
+    df['quarter'] = df['quarter'].astype('str')
 
-    # Decompose potential output growth
-    d['capital_cont_ceiling'] = d['capital_ceiling_yoy'] * (d['alpha'] / 100)
-    d['labour_cont_ceiling'] = d['labour_ceiling_yoy'] * (1 - (d['alpha'] / 100))
-    d['tfp_cont_ceiling'] = d['gdp_ceiling_yoy'] - d['capital_cont_ceiling'] - d['labour_cont_ceiling']
+    # Compute ceiling
 
-    # Decompose observed output growth
-    d['capital_cont_observed'] = d['capital_observed_yoy'] * (d['alpha'] / 100)
-    d['labour_cont_observed'] = d['labour_observed_yoy'] * (1 - (d['alpha'] / 100))
-    d['tfp_cont_observed'] = d['gdp_yoy'] - d['capital_cont_observed'] - d['labour_cont_observed']
+    list_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
+    df = compute_ceilings(
+        data=df,
+        levels_labels=list_ln,
+        ref_level_label='ln_gdp',
+        downturn_threshold=threshold,  # 0.65 to 0.8
+        bounds_timing_shift=-1,
+        hard_bound=True,
+        interpolation_method=interpolate_method
+    )
 
-    return d
+    df, df_rev = update_ceiling(
+        data=df,
+        option='gap',
+        hard_bound=True
+    )
 
+    # Compute output gap
 
-df_pd = prodfunc(data=df)  # use labour force
-df_hd = prodfunc_histdecomp(input=df_pd)
+    df_og = output_gap(data=df)
+    df_og = pd.DataFrame(df_og).rename(columns={'output_gap': T_ub})
 
-# VI --- Export data frames
-# post-update frame with bounds (useful for plotting logs, and ceilings of K and N)
-df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('pluckingpo_dns_estimates' + file_suffix_fcast + '.parquet', compression='brotli')
-# post_update frame without bounds (useful for plotting logs)
-df_nobound['quarter'] = df_nobound['quarter'].astype('str')
-df_nobound.to_parquet('pluckingpo_dns_estimates_nobounds' + file_suffix_fcast + '.parquet', compression='brotli')
-# update process
-df_update_ceiling['quarter'] = df_update_ceiling['quarter'].astype('str')
-df_update_ceiling.to_parquet('pluckingpo_dns_updateceiling' + file_suffix_fcast + '.parquet', compression='brotli')
-# production function
-df_pd['quarter'] = df_pd['quarter'].astype('str')
-df_pd.to_parquet('pluckingpo_dns_estimates_pf' + file_suffix_fcast + '.parquet', compression='brotli')
-# production function decomp
-df_hd['quarter'] = df_hd['quarter'].astype('str')
-df_hd.to_parquet('pluckingpo_dns_estimates_pf_hd' + file_suffix_fcast + '.parquet', compression='brotli')
+    # Consolidate vintages
+    if round == 1:
+        df_final = df_og.copy()
+    elif round > 1:
+        df_final = df_final.merge(df_og, on='quarter', how='outer')
+    round += 1
 
+df_final = df_final[['quarter'] + list_T_ub]
+
+# V --- Export data
+
+df_final['quarter'] = df_final['quarter'].astype('str')
+df_final.to_parquet('pluckingpo_dns_estimates_vintages.parquet', compression='brotli')
+
+# VI --- Notify
 telsendmsg(conf=tel_config,
-           msg='pluckingpo_compute_ceiling_dns: COMPLETED')
+           msg='pluckingpo_compute_vintages_dns: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

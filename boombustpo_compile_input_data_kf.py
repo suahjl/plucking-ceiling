@@ -156,7 +156,7 @@ for i in tqdm(list_col):
 # Assumed trend growth for ProdFunc PO
 df['ln_po_pf_d_trend'] = np.power(1.0479, 0.25) - 1
 # HP-filtered PO (for initial states later)
-trend, cycle = sm.filters.hpfilter(df['ln_gdp'].dropna(), lamb=11200)
+cycle, trend = sm.filters.hpfilter(df['ln_gdp'].dropna(), lamb=11200)
 df['po_hp'] = trend
 df['output_gap_hp'] = cycle
 

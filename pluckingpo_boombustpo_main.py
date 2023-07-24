@@ -30,7 +30,7 @@ def telsendmsg(conf='', msg=''):
 
 # II --- Run scripts, in intended sequence
 import pluckingpo_compile_input_data
-import pluckingpo_compute_ceiling
+import pluckingpo_compute_ceiling_dns  # pluckingpo_compute_ceiling
 import pluckingpo_plot_bound_versus_nobound
 import pluckingpo_plot_updateceiling
 import pluckingpo_plot_histdecomp
@@ -50,9 +50,9 @@ import pluckingpo_compile_charts
 
 # time.sleep(15)
 
-# import pluckingpo_compute_vintages
+# import pluckingpo_compute_vintages_dns
 # import pluckingpo_plot_vintages
-# import boombustpo_compute_vintages
+# import boombustpo_compute_vintages_dns
 # import boombustpo_plot_vintages
 
 # time.sleep(15)

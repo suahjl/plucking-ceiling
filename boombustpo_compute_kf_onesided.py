@@ -59,7 +59,6 @@ df = pd.read_parquet('boombustpo_input_data_kf' + file_suffix_fcast + '.parquet'
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
-
 # III --- Estimate initial parameter values
 
 
@@ -130,7 +129,7 @@ def est_init_values(data):
          'pc_se': [pc_se],
          'lambda_init': [lambda_init]}
     )
-    all_init_values = all_init_values.transpose().rename(columns={0: 'init_values'})
+    all_init_values = all_init_values.transpose().rename(columns={0:'init_values'})
 
     return all_init_values
 
@@ -142,6 +141,7 @@ all_init_values = est_init_values(data=df)
 
 
 def kfilter_po_evp(data, initial_values):
+
     # A. Create deep copies of input
     init_val = initial_values.copy()  # all_init_values
 
@@ -240,6 +240,7 @@ def kfilter_po_evp(data, initial_values):
 
 kfilter_po = kfilter_po_evp(data=df, initial_values=all_init_values)
 
+
 # V --- Consolidate output
 df = pd.concat([df, kfilter_po], axis=1)  # left-right concat
 list_col_output = ['gdp', 'po_pf', 'po_kf',
@@ -275,11 +276,11 @@ for i, j in zip(list_col, list_col_yoy):
 # VI --- Export data frames
 df = df.reset_index()
 df['quarter'] = df['quarter'].astype('str')
-df.to_parquet('boombustpo_estimates_kf' + file_suffix_fcast + '.parquet')
+df.to_parquet('boombustpo_estimates_kf_onesided' + file_suffix_fcast + '.parquet')
 
 # V --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_compute_kf: COMPLETED')
+           msg='boombustpo_compute_kf_onesided: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

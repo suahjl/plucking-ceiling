@@ -60,7 +60,7 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df_update_ceiling = pd.read_parquet('pluckingpo_updateceiling' + file_suffix_fcast + '.parquet')
+df_update_ceiling = pd.read_parquet('pluckingpo_dns_updateceiling' + file_suffix_fcast + '.parquet')
 df_update_ceiling['quarter'] = pd.to_datetime(df_update_ceiling['quarter']).dt.to_period('Q')
 df_update_ceiling = df_update_ceiling.set_index('quarter')
 

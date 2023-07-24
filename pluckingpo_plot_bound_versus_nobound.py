@@ -59,11 +59,11 @@ def telsendmsg(conf='', msg=''):
                        messages=[msg])
 
 # II --- Load data
-df = pd.read_parquet('pluckingpo_estimates' + file_suffix_fcast + '.parquet')
+df = pd.read_parquet('pluckingpo_dns_estimates' + file_suffix_fcast + '.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
-df_nobound = pd.read_parquet('pluckingpo_estimates_nobounds' + file_suffix_fcast + '.parquet')
+df_nobound = pd.read_parquet('pluckingpo_dns_estimates_nobounds' + file_suffix_fcast + '.parquet')
 df_nobound['quarter'] = pd.to_datetime(df_nobound['quarter']).dt.to_period('Q')
 df_nobound = df_nobound.set_index('quarter')
 
