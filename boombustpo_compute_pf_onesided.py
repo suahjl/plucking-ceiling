@@ -81,7 +81,7 @@ for i, j in zip(list_col_ln, list_col_ln_trend):
             if t_count == burn_in_duration:
                 df[j] = trend
             elif t_count > burn_in_duration:
-                df[j] = df[j].combine_first(trend)  # fill in NA with new trend
+                df.loc[df[j].isna(), j] = trend  # fill in NA with new trend
         t_count += 1
 
 # IV --- Production function estimation
@@ -95,8 +95,22 @@ def prodfunc_po(data):
     d['ln_tfp'] = d['ln_gdp'] - d['implied_y']  # ln(tfp)
 
     # TFP trend
-    cycle, trend = sm.filters.hpfilter(d.loc[~d['ln_tfp'].isna(), 'ln_tfp'], lamb=11200)  # deals with NA
-    d['ln_tfp_trend'] = trend  # don't replace original with trend component
+    burn_in_duration = 20
+    t_count = 0
+    for t in tqdm(list(df.index)):
+        if t_count < burn_in_duration:
+            pass
+        elif t_count >= burn_in_duration:
+            cycle, trend = \
+                sm.filters.hpfilter(
+                    d.loc[(~d['ln_tfp'].isna()) & (d.index <= t), 'ln_tfp'],
+                    lamb=11200
+                )
+            if t_count == burn_in_duration:
+                d['ln_tfp_trend'] = trend
+            elif t_count > burn_in_duration:
+                d.loc[d['ln_tfp_trend'].isna(), 'ln_tfp_trend'] = trend  # fill in NA with new trend
+        t_count += 1
 
     # Calculate potential output
     d['ln_po'] = d['ln_tfp_trend'] + \

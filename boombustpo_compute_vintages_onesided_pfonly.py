@@ -379,22 +379,22 @@ for t_end in tqdm(list_t_ends):
 
     # Merging
     if round == 1:
-        df_final = pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})
+        df_final = pd.DataFrame(df['output_gap_pf']).rename(columns={'output_gap_pf': t_end})  # PF ONLY
     elif round > 1:
         df_final = pd.concat([df_final,
-                              pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})],
-                             axis=1)
+                              pd.DataFrame(df['output_gap_pf']).rename(columns={'output_gap_pf': t_end})],
+                             axis=1)  # PF ONLY
     round += 1
 
 # V --- Export data
 
 df_final = df_final.reset_index()
 df_final['quarter'] = df_final['quarter'].astype('str')
-df_final.to_parquet('boombustpo_estimates_vintages_onesided.parquet', compression='brotli')
+df_final.to_parquet('boombustpo_estimates_vintages_onesided_pfonly.parquet', compression='brotli')
 
 # VI --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_compute_vintages_onesided: COMPLETED')
+           msg='boombustpo_compute_vintages_onesided_pfonly: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

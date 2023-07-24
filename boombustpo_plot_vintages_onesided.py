@@ -1,10 +1,3 @@
-# -------------- Allow PO to deviate from first guess based on K and N
-# -------------- Casts the bands as 'uncertainty in timing of peaks by 1Q earlier'
-# -------------- Option to show or hide confidence bands
-# -------------- Option to not show any forecasts
-# -------------- Open data version (est3)
-
-
 import pandas as pd
 import numpy as np
 from datetime import date, timedelta
@@ -110,12 +103,12 @@ fig_vintages = plot_linechart(
     colours=list_colours + ['black'],
     dash_styles=list_dash_styles + ['solid'],
     y_axis_title='% Potential Output',
-    main_title='Vintages of Current Output Gap Estimates (Average of PF and KF Methods)',
+    main_title='Vintages of Current Output Gap Estimates (Average of PF and KF Methods (One-Sided))',
     output_suffix='OutputGap'
 )
 telsendimg(conf=tel_config,
            path='Output/BoomBustPO_Vintage_OutputGap.png',
-           cap='Vintages of Current Output Gap Estimates (Average of PF and KF Methods)')
+           cap='Vintages of Current Output Gap Estimates (Average of PF and KF Methods (One-Sided))')
 
 # revisions
 

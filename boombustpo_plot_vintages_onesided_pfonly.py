@@ -54,7 +54,7 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df = pd.read_parquet('boombustpo_estimates_vintages.parquet')
+df = pd.read_parquet('boombustpo_estimates_vintages_onesided_pfonly.parquet')  # PF ONLY
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
@@ -103,12 +103,12 @@ fig_vintages = plot_linechart(
     colours=list_colours + ['black'],
     dash_styles=list_dash_styles + ['solid'],
     y_axis_title='% Potential Output',
-    main_title='Vintages of Current Output Gap Estimates (Average of PF and KF Methods)',
+    main_title='Vintages of Current Output Gap Estimates (PF Only (One-Sided))',
     output_suffix='OutputGap'
 )
 telsendimg(conf=tel_config,
            path='Output/BoomBustPO_Vintage_OutputGap.png',
-           cap='Vintages of Current Output Gap Estimates (Average of PF and KF Methods)')
+           cap='Vintages of Current Output Gap Estimates (PF Only (One-Sided))')
 
 # revisions
 
@@ -144,7 +144,7 @@ fig_rev = plot_areachart(
     nice_names=['Revisions'],
     colours=['lightcoral'],
     y_axis_title='Percentage Points (% Potential Output)',
-    main_title='Revisions in Current Output Gap Across Consecutive Vintages',
+    main_title='Revisions in Current Output Gap Across Consecutive Vintages (PF Only)',
     show_legend=False,
     ymin=-5,
     ymax=5,
@@ -152,12 +152,12 @@ fig_rev = plot_areachart(
 )
 telsendimg(conf=tel_config,
            path='Output/BoomBustPO_Vintage_OutputGap_Revisions.png',
-           cap='Revisions in Current Output Gap Across Consecutive Vintages')
+           cap='Revisions in Current Output Gap Across Consecutive Vintages (PF Only)')
 
 
 # IV --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_plot_vintages: COMPLETED')
+           msg='boombustpo_plot_vintages_onesided_pfonly: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
