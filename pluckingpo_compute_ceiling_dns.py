@@ -36,6 +36,8 @@ if use_forecast:
 elif not use_forecast:
     file_suffix_fcast = ''
 
+downturn_threshold_choice = 0.2
+
 
 # I --- Functions
 
@@ -107,48 +109,70 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
         col_diff, col_ceiling \
             in \
             zip(cols_levels, cols_peak, cols_trough, cols_epi, cols_cepi, cols_pace,
-                cols_epi, cols_diff, cols_ceiling):  # work on levels
-        # Compute downturn threshold
-        threshold_for_this_col = np.std(df[col_level]) * downturn_threshold
+                cols_epi, cols_diff, cols_ceiling):
+        # Compute downturn threshold using standard deviation of logdiff
+        if col_level == 'urate':
+            threshold_for_this_col = np.std(df[col_level]) * downturn_threshold
+        else:
+            threshold_for_this_col = np.std(df[col_diff]) * downturn_threshold
 
         # Initialise time count
-        t_position = 0
-        while t_position < n_list_time:
+        t_position = -1  # so that we start at t=0
+        still_checking_for_trough = False  # so that initial check will run
+        peak_checked = False
+        while t_position < (n_list_time - 1):  # T+1 does not exist
             # CHECK FOR PEAK
-            # Extract time label
-            current_t = list_time[t_position]
-            t_plus_one = list_time[t_position + 1]
+            if not still_checking_for_trough:
+                # Move on to next time count
+                t_position += 1  # as long as we're checking for peak
 
-            # Check if t+1 is worse than t
-            go_back = (
-                    df.loc[df.index == t_plus_one, col_level].values[0]
-                    <
-                    df.loc[df.index == current_t, col_level].values[0]
-            )
+                # Extract time label
+                current_t = list_time[t_position]
+                t_plus_one = list_time[t_position + 1]
+                print('checking peak in ' + current_t)
 
-            # Check if t+1 is higher than threshold
-            if not go_back:
+                # Check if t+1 is worse than t
                 go_back = (
                         df.loc[df.index == t_plus_one, col_level].values[0]
                         <
-                        df.loc[df.index == current_t, col_level].values[0] + threshold_for_this_col
-                )
+                        df.loc[df.index == current_t, col_level].values[0]
+                )  # equivalent to logdiff being negative
 
-            # Add to list of peaks
-            if not go_back:
-                list_peaks = list_peaks + [current_t]
+                # Check if t+1 is higher than threshold
+                if not go_back:
+                    # only sensible for rates
+                    if 'rate' in col_level:
+                        go_back = (
+                                df.loc[df.index == t_plus_one, col_level].values[0]
+                                <
+                                df.loc[df.index == current_t, col_level].values[0] + threshold_for_this_col
+                        )
+                    # adapted to non-rate data
+                    else:
+                        go_back = (
+                                df.loc[df.index == t_plus_one, col_diff].values[0]
+                                <
+                                0 + threshold_for_this_col
+                        )
+
+                # Add to list of peaks
+                if not go_back:
+                    list_peaks = list_peaks + [current_t]
+                    peak_checked = True
+                    print('peak found in ' + current_t)
 
             # CHECK FOR TROUGH
-            still_checking_for_trough = True
-            while still_checking_for_trough:
+            if peak_checked:
+                still_checking_for_trough = True
+            if still_checking_for_trough:
                 # Move on to next time count
-                if not go_back:
-                    t_position += 1
+                t_position += 1  # as long as we're checking for trough
 
                 # Re-extract time label
                 if not go_back:
                     current_t = list_time[t_position]
                     t_plus_one = list_time[t_position + 1]
+                    print('checking trough in ' + current_t)
 
                 # Check if t+1 is better than t
                 if not go_back:
@@ -160,16 +184,28 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
 
                 # Check if t+1 is lower than threshold
                 if not go_back:
-                    go_back = (
-                            df.loc[df.index == t_plus_one, col_level].values[0]
-                            >
-                            df.loc[df.index == current_t, col_level].values[0] - threshold_for_this_col
-                    )
+                    # only sensible for rates
+                    if 'rate' in col_level:
+                        go_back = (
+                                df.loc[df.index == t_plus_one, col_level].values[0]
+                                >
+                                df.loc[df.index == current_t, col_level].values[0] - threshold_for_this_col
+                            # need to redo
+                        )
+                    # adapted to non-rate data
+                    else:
+                        go_back = (
+                                df.loc[df.index == t_plus_one, col_diff].values[0]
+                                >
+                                0 - threshold_for_this_col
+                        )
 
                 # Add to list of troughs
                 if not go_back:
                     list_troughs = list_troughs + [current_t]
                     still_checking_for_trough = False
+                    peak_checked = False
+                    print('trough found in ' + current_t)
 
         # Add columns indicating peaks and troughs
         df.loc[df.index.astype('str').isin(list_peaks), col_peak] = 1
@@ -257,7 +293,7 @@ df = compute_ceilings(
     data=df,
     levels_labels=list_ln,
     ref_level_label='ln_gdp',
-    downturn_threshold=0.8,  # 0.65 to 0.8
+    downturn_threshold=downturn_threshold_choice,
     bounds_timing_shift=-1,
     hard_bound=True
 )
@@ -265,7 +301,7 @@ df_nobound = compute_ceilings(
     data=df,
     levels_labels=list_ln,
     ref_level_label='ln_gdp',
-    downturn_threshold=0.8,  # 0.65 to 0.8
+    downturn_threshold=downturn_threshold_choice,
     bounds_timing_shift=-1,
     hard_bound=False
 )
