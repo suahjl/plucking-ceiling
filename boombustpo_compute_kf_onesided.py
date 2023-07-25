@@ -55,7 +55,7 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Load data
-df = pd.read_parquet('boombustpo_input_data_kf' + file_suffix_fcast + '.parquet')
+df = pd.read_parquet('boombustpo_input_data_kf_onesided' + file_suffix_fcast + '.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 

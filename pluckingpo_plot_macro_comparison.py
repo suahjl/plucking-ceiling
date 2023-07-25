@@ -111,7 +111,7 @@ df_cpi_core_old['cpi_core_old_yoy'] = ((df_cpi_core_old['cpi_core'] / df_cpi_cor
 del df_cpi_core_old['cpi_core']
 
 # Output gap
-df_pluck = pd.read_parquet('pluckingpo_estimates_pf.parquet')
+df_pluck = pd.read_parquet('pluckingpo_dns_estimates_pf.parquet')
 df_pluck['quarter'] = pd.to_datetime(df_pluck['quarter']).dt.to_period('Q')
 df_pluck = df_pluck.set_index('quarter')
 df_pluck = df_pluck[['output_gap', 'output_gap_lb']]

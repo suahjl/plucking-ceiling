@@ -31,6 +31,7 @@ list_T_outliers = ['1997Q4', '1998Q1', '1998Q2', '1998Q3', '1998Q4',
                    '2020Q1', '2020Q2', '2020Q3', '2020Q4',
                    '2021Q1', '2021Q2', '2021Q3', '2021Q4']
 
+
 # I --- Functions
 
 
@@ -55,8 +56,10 @@ def telsendmsg(conf='', msg=''):
 
 def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series IDs
     for m in range(len(input)):
-        try: input.remove(np.nan)  # brute force remove all np.nans from series ID list
-        except: print('no more np.nan')
+        try:
+            input.remove(np.nan)  # brute force remove all np.nans from series ID list
+        except:
+            print('no more np.nan')
     k = 1
     for i in tqdm(input):
         series_result = Ceic.series(i, start_date=start_date)  # retrieves ceicseries
@@ -111,7 +114,7 @@ df_cpi_core_old['cpi_core_old_yoy'] = ((df_cpi_core_old['cpi_core'] / df_cpi_cor
 del df_cpi_core_old['cpi_core']
 
 # Output gap
-df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')
+df_bb = pd.read_parquet('boombustpo_estimates_kf_onesided.parquet')
 df_bb['quarter'] = pd.to_datetime(df_bb['quarter']).dt.to_period('Q')
 df_bb = df_bb[(df_bb['quarter'] >= T_lb) & (df_bb['quarter'] <= T_ub)]
 df_bb = df_bb.set_index('quarter')
@@ -133,7 +136,7 @@ df = df[(df.index >= T_lb) & (df.index <= T_ub)]
 
 # Generate Lags
 # Define contemporaneous
-list_y_cols=['cpi_yoy', 'cpi_core_yoy', 'ppi_yoy', 'ur', 'caputil', 'ipi_yoy', 'm2_yoy']
+list_y_cols = ['cpi_yoy', 'cpi_core_yoy', 'ppi_yoy', 'ur', 'caputil', 'ipi_yoy', 'm2_yoy']
 list_y_nice_names = ['CPI YoY', 'Core CPI YoY', 'PPI YoY',
                      'Unemployment Rate', 'Capacity Utilisation', 'IPI YoY', 'M2 YoY']
 # Lags
@@ -148,7 +151,8 @@ for contemp, lag in tqdm(zip(list_y_cols, list_y_cols_lag2)):
     df[lag] = df[contemp].shift(2)
 
 # Outliers
-df_exoutliers=df[~(df.index.astype('str').isin(list_T_outliers))]  # separate df for plotting
+df_exoutliers = df[~(df.index.astype('str').isin(list_T_outliers))]  # separate df for plotting
+
 
 # III --- Plots
 
@@ -240,19 +244,21 @@ def scatterplots(data_full,
                           hovermode='x',
                           font=dict(size=30, color='black'),
                           showlegend=False)
-        fig.write_image('Output/BoomBustPO_MacroComparison_' + output_suffix + '.png', height=768, width=1366)
-        fig.write_html('Output/BoomBustPO_MacroComparison_' + output_suffix + '.html')
+        fig.write_image('Output/BoomBustPO_OneSidedAvg_MacroComparison_' + output_suffix + '.png',
+                        height=768, width=1366)
+        fig.write_html('Output/BoomBustPO_OneSidedAvg_MacroComparison_' + output_suffix + '.html')
+
 
 # Plot contemporaneous
-list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names]
+list_main_titles = ['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names]
 list_suffixes = list_y_cols.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['Boom-Bust Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -263,20 +269,20 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_OneSidedAvg_MacroComparison_' + i + '.png',
                cap=j)
 
 # Plot lag1
 time.sleep(15)
-list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag1]
+list_main_titles = ['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag1]
 list_suffixes = list_y_cols_lag1.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['Boom-Bust Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -287,20 +293,20 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_OneSidedAvg_MacroComparison_' + i + '.png',
                cap=j)
 
 # Plot lag2
 time.sleep(15)
-list_main_titles=['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag2]
+list_main_titles = ['Boom-Bust Output Gap versus ' + i for i in list_y_nice_names_lag2]
 list_suffixes = list_y_cols_lag2.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['Boom-Bust Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['Boom-Bust Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['darkblue'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -311,13 +317,12 @@ scatterplots(
 )
 for i, j in tqdm(zip(list_suffixes, list_main_titles)):
     telsendimg(conf=tel_config,
-               path='Output/BoomBustPO_MacroComparison_' + i + '.png',
+               path='Output/BoomBustPO_OneSidedAvg_MacroComparison_' + i + '.png',
                cap=j)
 
 # IV --- Notify
 telsendmsg(conf=tel_config,
            msg='boombustpo_plot_macro_comparison: COMPLETED')
-
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

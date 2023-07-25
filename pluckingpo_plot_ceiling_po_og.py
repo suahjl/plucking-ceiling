@@ -37,6 +37,7 @@ if use_forecast:
 elif not use_forecast:
     file_suffix_fcast = ''
 
+
 # I --- Functions
 
 
@@ -70,8 +71,8 @@ df_bb = df_bb.set_index('quarter')
 
 df_og = pd.concat([df_bb['output_gap_avg'], df_pd[['output_gap', 'output_gap_lb']]], axis=1)
 df_og = df_og.rename(columns={'output_gap_avg': 'boom_bust_og',
-                               'output_gap': 'pluck_og',
-                               'output_gap_lb': 'pluck_og_lb'})
+                              'output_gap': 'pluck_og',
+                              'output_gap_lb': 'pluck_og_lb'})
 df_og = df_og.sort_index()
 df_og['boom_bust_og_norm'] = \
     (df_og['boom_bust_og'] - df_og['boom_bust_og'].min()) / (df_og['boom_bust_og'].max() - df_og['boom_bust_og'].min())
@@ -225,7 +226,7 @@ fig_og = plot_linechart(data=df_og,
                         y_axis_title='% Potential Output',
                         main_title='Output Gap: Boom-Bust and Plucking',
                         output_suffix='OG',
-                         use_forecast_choice=use_forecast)
+                        use_forecast_choice=use_forecast)
 fig_og_norm = plot_linechart(data=df_og,
                              cols=col_og_norm,
                              nice_names=col_og_norm_nice,
@@ -241,7 +242,6 @@ for i in suffix_figs:
     telsendimg(conf=tel_config,
                path='Output/PluckingPO_ObsCeiling_' + i + file_suffix_fcast + '.png',
                cap=i + ' (observed and ceiling)')
-
 
 # IV --- Notify
 telsendmsg(conf=tel_config,

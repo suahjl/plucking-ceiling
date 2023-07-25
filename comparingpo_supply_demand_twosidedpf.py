@@ -18,6 +18,7 @@ import localprojections as lp
 from dotenv import load_dotenv
 import os
 import ast
+
 # import pyeviews as evp
 
 time_start = time.time()
@@ -31,13 +32,16 @@ T_lb_day = date(1995, 1, 1)
 T_ub_day = date(2022, 12, 31)  # date(2022, 9, 30)
 Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
 
+
 # I --- Functions
 
 
 def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series IDs
     for m in range(len(input)):
-        try: input.remove(np.nan)  # brute force remove all np.nans from series ID list
-        except: print('no more np.nan')
+        try:
+            input.remove(np.nan)  # brute force remove all np.nans from series ID list
+        except:
+            print('no more np.nan')
     k = 1
     for i in tqdm(input):
         series_result = Ceic.series(i, start_date=start_date)  # retrieves ceicseries
@@ -80,7 +84,7 @@ def telsendmsg(conf='', msg=''):
 
 # II --- Data
 # Plucking PO estimates
-df = pd.read_parquet('pluckingpo_estimates_pf.parquet')
+df = pd.read_parquet('pluckingpo_dns_estimates_pf.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df[(df['quarter'] >= T_lb) & (df['quarter'] <= T_ub)]
 df = df.set_index('quarter')
@@ -90,14 +94,18 @@ df = df.rename(columns={'output_gap': 'output_gap_pluck',
                         'gdp_ceiling_lb': 'po_pluck_lb'})
 
 # Boom-bust PO estimates
-df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')  # read_csv('D:/Users/ECSUAH/OneDrive - Bank Negara Malaysia/output_for_po_estimation/2023-01-04_KFilter_Estimates.txt', sep='|')
-# df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')
+# df_bb = pd.read_parquet('boombustpo_estimates_kf_onesided.parquet')  # onesided
+df_bb = pd.read_parquet('boombustpo_estimates_kf.parquet')
 df_bb['quarter'] = pd.to_datetime(df_bb['quarter']).dt.to_period('Q')
 df_bb = df_bb[(df_bb['quarter'] >= T_lb) & (df_bb['quarter'] <= T_ub)]
 df_bb = df_bb.set_index('quarter')
 df_bb = df_bb.sort_index()
-df_bb = pd.DataFrame(df_bb[['po_avg', 'output_gap_avg']]).rename(columns={'output_gap_avg': 'output_gap_boombust',
-                                                                          'po_avg': 'po_boombust'})
+# df_bb = pd.DataFrame(df_bb[['po_avg', 'output_gap_avg']]).rename(columns={'output_gap_avg': 'output_gap_boombust',
+#                                                                           'po_avg': 'po_boombust'})
+df_bb = pd.DataFrame(df_bb[['po_pf', 'output_gap_pf']]).rename(columns={'output_gap_pf': 'output_gap_boombust',
+                                                                        'po_pf': 'po_boombust'})
+# df_bb = pd.DataFrame(df_bb[['po_kf', 'output_gap_kf']]).rename(columns={'output_gap_kf': 'output_gap_boombust',
+#                                                                         'po_kf': 'po_boombust'})
 
 # CEIC data
 series_ids = pd.read_csv('ceic_seriesid_forsupplydemand.txt', dtype='str', sep='|')
@@ -105,7 +113,7 @@ series_ids = list(series_ids['series_id'])
 df_ceic = ceic2pandas_ts(input=series_ids, start_date=T_lb_day)
 df_ceic = df_ceic.rename(columns={'Crude Oil: Spot Price: Europe Brent': 'brent',
                                   'Government Securities Yield: 10 Years': 'mgs10y',
-                                  'Government Securities Yield: 1 Year' : 'mgs1y',
+                                  'Government Securities Yield: 1 Year': 'mgs1y',
                                   'Government Securities Yield: 2 Years': 'mgs2y',
                                   'Government Securities Yield: 3 years': 'mgs3y',
                                   'Government Securities Yield: 4 years': 'mgs4y',
@@ -163,43 +171,77 @@ for i in col_levels:
 for i in col_rates:
     df[i] = df[i] - df[i].shift(1)
 
-
 # II --- VAR
 
 max_lags_choice = 4
 trend_term_choice = 'c'
 
-order_base1a = ['gepu', 'brent', 'gdp', 'cpi_core', 'blr']
-order_pluck1a = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'blr']
-order_boombust1a = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'blr']
+with_gepu = True
+if with_gepu:
+    order_base1a = ['gepu', 'brent', 'gdp', 'cpi_core', 'blr']
+    order_pluck1a = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'blr']
+    order_boombust1a = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'blr']
 
-order_base1b = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs10y']
-order_pluck1b = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs10y']
-order_boombust1b = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs10y']
+    order_base1b = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs10y']
+    order_pluck1b = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs10y']
+    order_boombust1b = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs10y']
 
-order_base1c = ['gepu', 'brent', 'gdp', 'cpi_core', 'klibor1m']
-order_pluck1c = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'klibor1m']
-order_boombust1c = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'klibor1m']
+    order_base1c = ['gepu', 'brent', 'gdp', 'cpi_core', 'klibor1m']
+    order_pluck1c = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'klibor1m']
+    order_boombust1c = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'klibor1m']
 
-order_base1d = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs1y']
-order_pluck1d = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs1y']
-order_boombust1d = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs1y']
+    order_base1d = ['gepu', 'brent', 'gdp', 'cpi_core', 'mgs1y']
+    order_pluck1d = ['gepu', 'brent', 'po_pluck', 'cpi_core', 'mgs1y']
+    order_boombust1d = ['gepu', 'brent', 'po_boombust', 'cpi_core', 'mgs1y']
 
-order_base2a = ['gepu', 'brent', 'gdp', 'blr']
-order_pluck2a = ['gepu', 'brent', 'po_pluck', 'blr']
-order_boombust2a = ['gepu', 'brent', 'po_boombust', 'blr']
+    order_base2a = ['gepu', 'brent', 'gdp', 'blr']
+    order_pluck2a = ['gepu', 'brent', 'po_pluck', 'blr']
+    order_boombust2a = ['gepu', 'brent', 'po_boombust', 'blr']
 
-order_base2b = ['gepu', 'brent', 'gdp', 'mgs10y']
-order_pluck2b = ['gepu', 'brent', 'po_pluck', 'mgs10y']
-order_boombust2b = ['gepu', 'brent', 'po_boombust', 'mgs10y']
+    order_base2b = ['gepu', 'brent', 'gdp', 'mgs10y']
+    order_pluck2b = ['gepu', 'brent', 'po_pluck', 'mgs10y']
+    order_boombust2b = ['gepu', 'brent', 'po_boombust', 'mgs10y']
 
-order_base2c = ['gepu', 'brent', 'gdp', 'klibor1m']
-order_pluck2c = ['gepu', 'brent', 'po_pluck', 'klibor1m']
-order_boombust2c = ['gepu', 'brent', 'po_boombust', 'klibor1m']
+    order_base2c = ['gepu', 'brent', 'gdp', 'klibor1m']
+    order_pluck2c = ['gepu', 'brent', 'po_pluck', 'klibor1m']
+    order_boombust2c = ['gepu', 'brent', 'po_boombust', 'klibor1m']
 
-order_base2d = ['gepu', 'brent', 'gdp', 'mgs1y']
-order_pluck2d = ['gepu', 'brent', 'po_pluck', 'mgs1y']
-order_boombust2d = ['gepu', 'brent', 'po_boombust', 'mgs1y']
+    order_base2d = ['gepu', 'brent', 'gdp', 'mgs1y']
+    order_pluck2d = ['gepu', 'brent', 'po_pluck', 'mgs1y']
+    order_boombust2d = ['gepu', 'brent', 'po_boombust', 'mgs1y']
+
+elif not with_gepu:
+    order_base1a = ['brent', 'gdp', 'cpi_core', 'blr']
+    order_pluck1a = ['brent', 'po_pluck', 'cpi_core', 'blr']
+    order_boombust1a = ['brent', 'po_boombust', 'cpi_core', 'blr']
+
+    order_base1b = ['brent', 'gdp', 'cpi_core', 'mgs10y']
+    order_pluck1b = ['brent', 'po_pluck', 'cpi_core', 'mgs10y']
+    order_boombust1b = ['brent', 'po_boombust', 'cpi_core', 'mgs10y']
+
+    order_base1c = ['brent', 'gdp', 'cpi_core', 'klibor1m']
+    order_pluck1c = ['brent', 'po_pluck', 'cpi_core', 'klibor1m']
+    order_boombust1c = ['brent', 'po_boombust', 'cpi_core', 'klibor1m']
+
+    order_base1d = ['brent', 'gdp', 'cpi_core', 'mgs1y']
+    order_pluck1d = ['brent', 'po_pluck', 'cpi_core', 'mgs1y']
+    order_boombust1d = ['brent', 'po_boombust', 'cpi_core', 'mgs1y']
+
+    order_base2a = ['brent', 'gdp', 'blr']
+    order_pluck2a = ['brent', 'po_pluck', 'blr']
+    order_boombust2a = ['brent', 'po_boombust', 'blr']
+
+    order_base2b = ['brent', 'gdp', 'mgs10y']
+    order_pluck2b = ['brent', 'po_pluck', 'mgs10y']
+    order_boombust2b = ['brent', 'po_boombust', 'mgs10y']
+
+    order_base2c = ['brent', 'gdp', 'klibor1m']
+    order_pluck2c = ['brent', 'po_pluck', 'klibor1m']
+    order_boombust2c = ['brent', 'po_boombust', 'klibor1m']
+
+    order_base2d = ['brent', 'gdp', 'mgs1y']
+    order_pluck2d = ['brent', 'po_pluck', 'mgs1y']
+    order_boombust2d = ['brent', 'po_boombust', 'mgs1y']
 
 
 def est_var(data, chol_order, max_lags, trend_term, irf_horizon, plot_response, plot_cirf, charts_dst_prefix):
@@ -259,7 +301,7 @@ mod_var_boombust1a, res_var_boombust1a, irf_var_boombust1a, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_Boombust1a'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1a'
 )
 
 # 1b: All 5 variables, Core CPI, MP = MGS10Y
@@ -291,7 +333,7 @@ mod_var_boombust1b, res_var_boombust1b, irf_var_boombust1b, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust1b'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1b'
 )
 
 # 1c: All 5 variables, Core CPI, MP = KLIBOR1M
@@ -323,7 +365,7 @@ mod_var_boombust1c, res_var_boombust1c, irf_var_boombust1c, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust1c'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1c'
 )
 
 # 1d: All 5 variables, Core CPI, MP = MGS1Y
@@ -355,7 +397,7 @@ mod_var_boombust1d, res_var_boombust1d, irf_var_boombust1d, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust1d'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1d'
 )
 
 # 2a: No inflation, MP = BLR
@@ -387,7 +429,7 @@ mod_var_boombust2a, res_var_boombust2a, irf_var_boombust2a, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust2a'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2a'
 )
 
 # 2b: No inflation, MP = MGS10Y
@@ -420,7 +462,7 @@ mod_var_boombust2b, res_var_boombust2b, irf_var_boombust2b, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust2b'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2b'
 )
 
 # 2c: No inflation, MP = KLIBOR1M
@@ -453,7 +495,7 @@ mod_var_boombust2c, res_var_boombust2c, irf_var_boombust2c, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust2c'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2c'
 )
 
 # 2d: No inflation, MP = MGS1Y
@@ -486,14 +528,13 @@ mod_var_boombust2d, res_var_boombust2d, irf_var_boombust2d, fig_irf_var_boombust
     irf_horizon=12,
     plot_response='po_boombust',
     plot_cirf=False,
-    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoomBust2d'
+    charts_dst_prefix='Output/ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2d'
 )
 
-
 # III --- Local Projections
-opt_lags = 2 # include 2 lags in the local projections model
-opt_cov = 'robust' # HAC standard errors
-opt_ci = 0.95 # 95% confidence intervals
+opt_lags = 2  # include 2 lags in the local projections model
+opt_cov = 'robust'  # HAC standard errors
+opt_ci = 0.95  # 95% confidence intervals
 
 # 1a: All 5 variables, Core CPI, MP = BLR
 irf_lp_base1a = lp.TimeSeriesLP(
@@ -502,12 +543,12 @@ irf_lp_base1a = lp.TimeSeriesLP(
     response=order_base1a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base1a = lp.IRFPlot(
     irf=irf_lp_base1a,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base1a,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -524,7 +565,7 @@ irf_lp_pluck1a = lp.TimeSeriesLP(
     response=order_pluck1a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck1a = lp.IRFPlot(
@@ -546,7 +587,7 @@ irf_lp_boombust1a = lp.TimeSeriesLP(
     response=order_boombust1a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust1a = lp.IRFPlot(
@@ -559,7 +600,7 @@ irfplot_lp_boombust1a = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust1a_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1a_IRF'
 )
 
 # 1b: All 5 variables, Core CPI, MP = MGS10Y
@@ -569,12 +610,12 @@ irf_lp_base1b = lp.TimeSeriesLP(
     response=order_base1b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base1b = lp.IRFPlot(
     irf=irf_lp_base1b,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base1b,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -591,7 +632,7 @@ irf_lp_pluck1b = lp.TimeSeriesLP(
     response=order_pluck1b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck1b = lp.IRFPlot(
@@ -613,7 +654,7 @@ irf_lp_boombust1b = lp.TimeSeriesLP(
     response=order_boombust1b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust1b = lp.IRFPlot(
@@ -626,7 +667,7 @@ irfplot_lp_boombust1b = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust1b_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1b_IRF'
 )
 
 # 1c: All 5 variables, Core CPI, MP = KLIBOR1M
@@ -636,12 +677,12 @@ irf_lp_base1c = lp.TimeSeriesLP(
     response=order_base1c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base1c = lp.IRFPlot(
     irf=irf_lp_base1c,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base1c,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -658,7 +699,7 @@ irf_lp_pluck1c = lp.TimeSeriesLP(
     response=order_pluck1c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck1c = lp.IRFPlot(
@@ -680,7 +721,7 @@ irf_lp_boombust1c = lp.TimeSeriesLP(
     response=order_boombust1c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust1c = lp.IRFPlot(
@@ -693,7 +734,7 @@ irfplot_lp_boombust1c = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust1c_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1c_IRF'
 )
 
 # 1d: All 5 variables, Core CPI, MP = MGS1Y
@@ -703,12 +744,12 @@ irf_lp_base1d = lp.TimeSeriesLP(
     response=order_base1d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base1d = lp.IRFPlot(
     irf=irf_lp_base1d,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base1d,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -725,7 +766,7 @@ irf_lp_pluck1d = lp.TimeSeriesLP(
     response=order_pluck1d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck1d = lp.IRFPlot(
@@ -747,7 +788,7 @@ irf_lp_boombust1d = lp.TimeSeriesLP(
     response=order_boombust1d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust1d = lp.IRFPlot(
@@ -760,9 +801,8 @@ irfplot_lp_boombust1d = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust1d_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1d_IRF'
 )
-
 
 # 2a: No inflation, MP = BLR
 irf_lp_base2a = lp.TimeSeriesLP(
@@ -771,12 +811,12 @@ irf_lp_base2a = lp.TimeSeriesLP(
     response=order_base2a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base2a = lp.IRFPlot(
     irf=irf_lp_base2a,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base2a,  # ... to shocks from all variables
     n_columns=2,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -793,7 +833,7 @@ irf_lp_pluck2a = lp.TimeSeriesLP(
     response=order_pluck2a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck2a = lp.IRFPlot(
@@ -815,7 +855,7 @@ irf_lp_boombust2a = lp.TimeSeriesLP(
     response=order_boombust2a.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust2a = lp.IRFPlot(
@@ -828,7 +868,7 @@ irfplot_lp_boombust2a = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust2a_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2a_IRF'
 )
 
 # 2b: No inflation, MP = MGS10Y
@@ -838,12 +878,12 @@ irf_lp_base2b = lp.TimeSeriesLP(
     response=order_base2b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base2b = lp.IRFPlot(
     irf=irf_lp_base2b,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base2b,  # ... to shocks from all variables
     n_columns=2,  # max columns in the figure
     n_rows=2,  # max rows in the figure
@@ -860,7 +900,7 @@ irf_lp_pluck2b = lp.TimeSeriesLP(
     response=order_pluck2b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck2b = lp.IRFPlot(
@@ -882,7 +922,7 @@ irf_lp_boombust2b = lp.TimeSeriesLP(
     response=order_boombust2b.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust2b = lp.IRFPlot(
@@ -895,7 +935,7 @@ irfplot_lp_boombust2b = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust2b_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2b_IRF'
 )
 
 # 2c: No inflation, MP = KLIBOR1M
@@ -905,12 +945,12 @@ irf_lp_base2c = lp.TimeSeriesLP(
     response=order_base2c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base2c = lp.IRFPlot(
     irf=irf_lp_base2c,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base2c,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=3,  # max rows in the figure
@@ -927,7 +967,7 @@ irf_lp_pluck2c = lp.TimeSeriesLP(
     response=order_pluck2c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck2c = lp.IRFPlot(
@@ -949,7 +989,7 @@ irf_lp_boombust2c = lp.TimeSeriesLP(
     response=order_boombust2c.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust2c = lp.IRFPlot(
@@ -962,9 +1002,8 @@ irfplot_lp_boombust2c = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust2c_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2c_IRF'
 )
-
 
 # 2d: No inflation, MP = KLIBOR1M
 irf_lp_base2d = lp.TimeSeriesLP(
@@ -973,12 +1012,12 @@ irf_lp_base2d = lp.TimeSeriesLP(
     response=order_base2d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_base2d = lp.IRFPlot(
     irf=irf_lp_base2d,  # take output from the estimated model
-    response=['po_base'],  # plot only response of xx ...
+    response=['gdp'],  # plot only response of xx ...
     shock=order_base2d,  # ... to shocks from all variables
     n_columns=3,  # max columns in the figure
     n_rows=3,  # max rows in the figure
@@ -995,7 +1034,7 @@ irf_lp_pluck2d = lp.TimeSeriesLP(
     response=order_pluck2d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_pluck2d = lp.IRFPlot(
@@ -1017,7 +1056,7 @@ irf_lp_boombust2d = lp.TimeSeriesLP(
     response=order_boombust2d.copy(),  # variables whose IRFs should be estimated
     horizon=12,  # estimation horizon of IRFs
     lags=1,  # lags in the model
-    newey_lags=2, # maximum lags when estimating Newey-West standard errors
+    newey_lags=2,  # maximum lags when estimating Newey-West standard errors
     ci_width=opt_ci  # width of confidence band
 )
 irfplot_lp_boombust2d = lp.IRFPlot(
@@ -1030,8 +1069,9 @@ irfplot_lp_boombust2d = lp.IRFPlot(
     show_fig=False,
     save_pic=True,
     out_path='Output/',
-    out_name='ComparingPO_SupplyDemand_LP_BoomBust2d_IRF'
+    out_name='ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2d_IRF'
 )
+
 
 # X --- COMPILE ALL CHARTS
 
@@ -1059,64 +1099,64 @@ def pil_img2pdf(list_images, extension='png', img_path='Output/', pdf_name='Comp
 seq_output = [
     'ComparingPO_SupplyDemand_VAR_Base1a_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck1a_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust1a_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1a_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base1b_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck1b_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust1b_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1b_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base1c_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck1c_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust1c_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1c_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base1d_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck1d_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust1d_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF1d_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base2a_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck2a_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust2a_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2a_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base2b_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck2b_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust2b_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2b_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base2c_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck2c_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust2c_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2c_OIRF',
     'ComparingPO_SupplyDemand_VAR_Base2d_OIRF',
     'ComparingPO_SupplyDemand_VAR_Pluck2d_OIRF',
-    'ComparingPO_SupplyDemand_VAR_BoomBust2d_OIRF',
+    'ComparingPO_SupplyDemand_VAR_BoombustTwoSidedPF2d_OIRF',
     'ComparingPO_SupplyDemand_LP_Base1a_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck1a_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust1a_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1a_IRF',
     'ComparingPO_SupplyDemand_LP_Base1b_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck1b_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust1b_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1b_IRF',
     'ComparingPO_SupplyDemand_LP_Base1c_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck1c_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust1c_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1c_IRF',
     'ComparingPO_SupplyDemand_LP_Base1d_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck1d_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust1d_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF1d_IRF',
     'ComparingPO_SupplyDemand_LP_Base2a_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck2a_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust2a_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2a_IRF',
     'ComparingPO_SupplyDemand_LP_Base2b_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck2b_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust2b_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2b_IRF',
     'ComparingPO_SupplyDemand_LP_Base2c_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck2c_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust2c_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2c_IRF',
     'ComparingPO_SupplyDemand_LP_Base2d_IRF',
     'ComparingPO_SupplyDemand_LP_Pluck2d_IRF',
-    'ComparingPO_SupplyDemand_LP_BoomBust2d_IRF',
+    'ComparingPO_SupplyDemand_LP_BoombustTwoSidedPF2d_IRF',
 ]
 pil_img2pdf(list_images=seq_output,
             img_path='Output/',
             extension='png',
-            pdf_name='ComparingPO_SupplyDemand_AllCharts')
+            pdf_name='ComparingPO_SupplyDemand_AllCharts_TwoSidedPF')
 telsendfiles(conf=tel_config,
-             path='Output/ComparingPO_SupplyDemand_AllCharts.pdf',
+             path='Output/ComparingPO_SupplyDemand_AllCharts_TwoSidedPF.pdf',
              cap='All charts on comparing the responses of PO estimates to supply and demand shocks')
 
 # XX --- Notify
 telsendmsg(conf=tel_config,
-           msg='comparingpo_supply_demand: COMPLETED')
+           msg='comparingpo_supply_demand_twosidedpf: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
