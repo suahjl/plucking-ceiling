@@ -322,7 +322,7 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
 
 # IV --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_plot_macro_comparison: COMPLETED')
+           msg='boombustpo_plot_macro_comparison_twosidedavg: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')

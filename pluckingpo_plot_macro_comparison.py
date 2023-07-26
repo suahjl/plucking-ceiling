@@ -31,6 +31,7 @@ list_T_outliers = ['1997Q4', '1998Q1', '1998Q2', '1998Q3', '1998Q4',
                    '2020Q1', '2020Q2', '2020Q3', '2020Q4',
                    '2021Q1', '2021Q2', '2021Q3', '2021Q4']
 
+
 # I --- Functions
 
 
@@ -55,8 +56,10 @@ def telsendmsg(conf='', msg=''):
 
 def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series IDs
     for m in range(len(input)):
-        try: input.remove(np.nan)  # brute force remove all np.nans from series ID list
-        except: print('no more np.nan')
+        try:
+            input.remove(np.nan)  # brute force remove all np.nans from series ID list
+        except:
+            print('no more np.nan')
     k = 1
     for i in tqdm(input):
         series_result = Ceic.series(i, start_date=start_date)  # retrieves ceicseries
@@ -111,7 +114,7 @@ df_cpi_core_old['cpi_core_old_yoy'] = ((df_cpi_core_old['cpi_core'] / df_cpi_cor
 del df_cpi_core_old['cpi_core']
 
 # Output gap
-df_pluck = pd.read_parquet('pluckingpo_dns_estimates_pf.parquet')
+df_pluck = pd.read_parquet('pluckingpo_dns_estimates_pf.parquet')  # dns
 df_pluck['quarter'] = pd.to_datetime(df_pluck['quarter']).dt.to_period('Q')
 df_pluck = df_pluck.set_index('quarter')
 df_pluck = df_pluck[['output_gap', 'output_gap_lb']]
@@ -125,16 +128,13 @@ df.loc[df['ppi_yoy'].isna(), 'ppi_yoy'] = df['ppi_old_yoy']
 df.loc[df['cpi_core_yoy'].isna(), 'cpi_core_yoy'] = df['cpi_core_old_yoy']
 del df['ppi_old_yoy']
 del df['cpi_core_old_yoy']
-if use_core_exclusion_no_tax:
-    df['cpi_core_yoy'] = df['cpi_core_alt_yoy'].copy()
-    del df['cpi_core_alt_yoy']
 
 # Timebound
 df = df[(df.index >= T_lb) & (df.index <= T_ub)]
 
 # Generate Lags
 # Define contemporaneous
-list_y_cols=['cpi_yoy', 'cpi_core_yoy', 'ppi_yoy', 'ur', 'caputil', 'ipi_yoy', 'm2_yoy']
+list_y_cols = ['cpi_yoy', 'cpi_core_yoy', 'ppi_yoy', 'ur', 'caputil', 'ipi_yoy', 'm2_yoy']
 list_y_nice_names = ['CPI YoY', 'Core CPI YoY', 'PPI YoY',
                      'Unemployment Rate', 'Capacity Utilisation', 'IPI YoY', 'M2 YoY']
 # Lags
@@ -149,7 +149,8 @@ for contemp, lag in tqdm(zip(list_y_cols, list_y_cols_lag2)):
     df[lag] = df[contemp].shift(2)
 
 # Outliers
-df_exoutliers=df[~(df.index.astype('str').isin(list_T_outliers))]  # separate df for plotting
+df_exoutliers = df[~(df.index.astype('str').isin(list_T_outliers))]  # separate df for plotting
+
 
 # III --- Plots against plucking output gap
 
@@ -246,15 +247,15 @@ def scatterplots(data_full,
 
 
 # Plot contemporaneous
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names]
+list_main_titles = ['"Plucking" Output Gap versus ' + i for i in list_y_nice_names]
 list_suffixes = list_y_cols.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['"Plucking" Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['crimson'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -270,15 +271,15 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
 
 # Plot lag1
 time.sleep(15)
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag1]
+list_main_titles = ['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag1]
 list_suffixes = list_y_cols_lag1.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['"Plucking" Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['crimson'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -294,15 +295,15 @@ for i, j in tqdm(zip(list_suffixes, list_main_titles)):
 
 # Plot lag2
 time.sleep(15)
-list_main_titles=['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag2]
+list_main_titles = ['"Plucking" Output Gap versus ' + i for i in list_y_nice_names_lag2]
 list_suffixes = list_y_cols_lag2.copy()
 scatterplots(
     data_full=df,
     data_ex_outliers=df_exoutliers,
     x_cols=['output_gap'] * 7,
     y_cols=list_y_cols,
-    x_nice_names = ['"Plucking" Output Gap %'] * 7,
-    y_nice_names = list_y_nice_names,
+    x_nice_names=['"Plucking" Output Gap %'] * 7,
+    y_nice_names=list_y_nice_names,
     colours_core=['crimson'] * 7,
     colours_outliers=['grey'] * 7,
     marker_sizes=[16] * 7,
@@ -371,7 +372,7 @@ list_x_nice_names_others = ['Unemployment Rate YoY',
                             'Unemployment Rate YoY']
 # Plot
 time.sleep(15)
-list_main_titles=[y + ' Against ' + x for y, x in zip(list_y_nice_names_others, list_x_nice_names_others)]
+list_main_titles = [y + ' Against ' + x for y, x in zip(list_y_nice_names_others, list_x_nice_names_others)]
 list_suffixes = ['PCurveUR_Core',
                  'PCurveUR_Headline',
                  'PCurveUR_Core_Lag1',
@@ -390,8 +391,8 @@ scatterplots(
     data_ex_outliers=df_exoutliers,
     x_cols=list_x_cols_others,
     y_cols=list_y_cols_others,
-    x_nice_names = list_x_nice_names_others,
-    y_nice_names = list_y_nice_names_others,
+    x_nice_names=list_x_nice_names_others,
+    y_nice_names=list_y_nice_names_others,
     colours_core=['black'] * 13,
     colours_outliers=['grey'] * 13,
     marker_sizes=[16] * 13,

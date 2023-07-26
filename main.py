@@ -33,11 +33,13 @@ def telsendmsg(conf='', msg=''):
 
 
 # II --- Run scripts, in intended sequence
-import pluckingpo_compile_input_data
+# import pluckingpo_compile_input_data
 import pluckingpo_compute_ceiling_dns
 import pluckingpo_plot_bound_versus_nobound
 import pluckingpo_plot_updateceiling
 import pluckingpo_plot_histdecomp
+
+import pluckingpo_compute_ceiling_dns_urate
 
 import boombustpo_compute_pf
 import boombustpo_compute_pf_onesided
@@ -45,8 +47,8 @@ import boombustpo_compute_pf_onesided
 import boombustpo_plot_histdecomp
 import boombustpo_plot_histdecomp_onesided
 
-import boombustpo_compile_input_data_kf
-import boombustpo_compile_input_data_kf_onesided
+# import boombustpo_compile_input_data_kf
+# import boombustpo_compile_input_data_kf_onesided
 
 import boombustpo_compute_kf
 import boombustpo_compute_kf_onesided
@@ -73,7 +75,7 @@ import boombustpo_plot_vintages_onesided
 import boombustpo_plot_vintages_onesided_pfonly
 
 time.sleep(15)
-import pluckingpo_plot_macro_comparison
+import pluckingpo_plot_macro_comparison  # some lines don't always run; need to check
 
 import boombustpo_plot_macro_comparison_twosidedavg
 import boombustpo_plot_macro_comparison_twosidedkf
@@ -91,11 +93,10 @@ import comparingpo_supply_demand_onesidedavg
 import comparingpo_supply_demand_onesidedpf
 import comparingpo_supply_demand_onesidedkf
 
-import pluckingpo_crosscountry_rgdp
-
 time.sleep(15)
 
-import pluckingpo_crosscountry_ur
+# import pluckingpo_crosscountry_rgdp
+# import pluckingpo_crosscountry_ur
 
 import generate_qr
 
