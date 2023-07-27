@@ -239,6 +239,14 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
                 if hard_bound | (levels == 'ln_lforce') | (levels == 'ln_nks'):
                     d.loc[d[ceiling] < d[levels], ceiling] = d[levels]  # replace with levels if first guess is lower
 
+                # print out which are the peaks and troughs
+                list_peaks = d.index[d[peak] == 1].tolist()
+                list_peaks = [str(i) for i in list_peaks]
+                print('Peaks in ' + levels + ' : ' + ', '.join(list_peaks))
+                list_troughs = d.index[d[trough] == 1].tolist()
+                list_troughs = [str(i) for i in list_troughs]
+                print('Troughs in ' + levels + ' : ' + ', '.join(list_troughs))
+
         # Left right merge + bounds
         if round == 1:
             d_consol = d.copy()  # initial copy

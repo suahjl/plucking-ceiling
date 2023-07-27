@@ -89,8 +89,8 @@ def plot_linechart(data, cols, nice_names, colours, dash_styles, y_axis_title, m
                       plot_bgcolor='white',
                       hovermode='x',
                       font=dict(size=20, color='black'))
-    fig.write_image('Output/BoomBustPO_Vintage_' + output_suffix + '.png', height=768, width=1366)
-    fig.write_html('Output/BoomBustPO_Vintage_' + output_suffix + '.html')
+    fig.write_image('Output/BoomBustPO_Vintage_OneSided_PFOnly_' + output_suffix + '.png', height=768, width=1366)
+    fig.write_html('Output/BoomBustPO_Vintage_OneSided_PFOnly_' + output_suffix + '.html')
     return fig
 
 
@@ -107,7 +107,7 @@ fig_vintages = plot_linechart(
     output_suffix='OutputGap'
 )
 telsendimg(conf=tel_config,
-           path='Output/BoomBustPO_Vintage_OutputGap.png',
+           path='Output/BoomBustPO_Vintage_OneSided_PFOnly_OutputGap.png',
            cap='Vintages of Current Output Gap Estimates (PF Only (One-Sided))')
 
 # revisions
@@ -133,8 +133,8 @@ def plot_areachart(data, cols, nice_names, colours, y_axis_title, main_title, sh
                       hovermode='x',
                       font=dict(size=20, color='black'),
                       showlegend=show_legend)
-    fig.write_image('Output/BoomBustPO_Vintage_' + output_suffix + '.png', height=768, width=1366)
-    fig.write_html('Output/BoomBustPO_Vintage_' + output_suffix + '.html')
+    fig.write_image('Output/BoomBustPO_Vintage_OneSided_PFOnly_' + output_suffix + '.png', height=768, width=1366)
+    fig.write_html('Output/BoomBustPO_Vintage_OneSided_PFOnly_' + output_suffix + '.html')
     return fig
 
 
@@ -144,15 +144,15 @@ fig_rev = plot_areachart(
     nice_names=['Revisions'],
     colours=['lightcoral'],
     y_axis_title='Percentage Points (% Potential Output)',
-    main_title='Revisions in Current Output Gap Across Consecutive Vintages (PF Only)',
+    main_title='Revisions in Current Output Gap Across Consecutive Vintages (PF Only (One-Sided))',
     show_legend=False,
     ymin=-5,
     ymax=5,
     output_suffix='OutputGap_Revisions'
 )
 telsendimg(conf=tel_config,
-           path='Output/BoomBustPO_Vintage_OutputGap_Revisions.png',
-           cap='Revisions in Current Output Gap Across Consecutive Vintages (PF Only)')
+           path='Output/BoomBustPO_Vintage_OneSided_PFOnly_OutputGap_Revisions.png',
+           cap='Revisions in Current Output Gap Across Consecutive Vintages (PF Only (One-Sided))')
 
 
 # IV --- Notify

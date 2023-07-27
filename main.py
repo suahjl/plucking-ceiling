@@ -66,13 +66,19 @@ time.sleep(15)
 import pluckingpo_compute_vintages_dns
 import pluckingpo_plot_vintages_dns
 
-import boombustpo_compute_vintages
+import boombustpo_compute_vintages_twosided
+import boombustpo_compute_vintages_twosided_pfonly
+import boombustpo_compute_vintages_twosided_kfonly
 import boombustpo_compute_vintages_onesided
 import boombustpo_compute_vintages_onesided_pfonly
+import boombustpo_compute_vintages_onesided_kfonly
 
-import boombustpo_plot_vintages
+import boombustpo_plot_vintages_twosided
+import boombustpo_plot_vintages_twosided_pfonly
+import boombustpo_plot_vintages_twosided_kfonly
 import boombustpo_plot_vintages_onesided
 import boombustpo_plot_vintages_onesided_pfonly
+import boombustpo_plot_vintages_onesided_kfonly
 
 time.sleep(15)
 import pluckingpo_plot_macro_comparison  # some lines don't always run; need to check

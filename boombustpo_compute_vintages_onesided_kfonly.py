@@ -35,7 +35,8 @@ list_dash_styles = ['solid', 'solid', 'solid', 'solid', 'solid', 'solid', 'longd
 dict_revision_pairs = {'2009Q3': '2007Q2',
                        '2019Q4': '2015Q4',
                        '2022Q4': '2019Q4'}
-tel_config = os.getenv('TEL_CONFIG')   # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
+tel_config = os.getenv('TEL_CONFIG')  # EcMetrics_Config_GeneralFlow EcMetrics_Config_RMU
+
 
 # I --- Functions
 
@@ -64,7 +65,7 @@ df_full = pd.read_parquet('pluckingpo_input_data.parquet')  # use same open data
 df_full['quarter'] = pd.to_datetime(df_full['quarter']).dt.to_period('Q')
 df_full = df_full.set_index('quarter')
 
-df_kf_ind_full = pd.read_parquet('boombustpo_input_data_kf.parquet')
+df_kf_ind_full = pd.read_parquet('boombustpo_input_data_kf_onesided.parquet')  # take onesided version
 df_kf_ind_full['quarter'] = pd.to_datetime(df_kf_ind_full['quarter']).dt.to_period('Q')
 df_kf_ind_full = df_kf_ind_full.set_index('quarter')
 for i in ['gdp', 'ln_gdp', 'ln_gdp_d', 'output_gap_pf', 'po_pf', 'ln_po_pf', 'ln_po_pf_d', 'ln_po_pf_d_trend']:
@@ -81,8 +82,22 @@ def prodfunc_po(data):
     d['ln_tfp'] = d['ln_gdp'] - d['implied_y']  # ln(tfp)
 
     # TFP trend
-    cycle, trend = smt.filters.hpfilter(d.loc[~d['ln_tfp'].isna(), 'ln_tfp'], lamb=1600)  # deals with NA
-    d['ln_tfp_trend'] = trend  # don't replace original with trend component
+    burn_in_duration = 20
+    t_count = 0
+    for t in tqdm(list(df.index)):
+        if t_count < burn_in_duration:
+            pass
+        elif t_count >= burn_in_duration:
+            cycle, trend = \
+                smt.filters.hpfilter(
+                    d.loc[(~d['ln_tfp'].isna()) & (d.index <= t), 'ln_tfp'],
+                    lamb=11200
+                )
+            if t_count == burn_in_duration:
+                d['ln_tfp_trend'] = trend
+            elif t_count > burn_in_duration:
+                d.loc[d['ln_tfp_trend'].isna(), 'ln_tfp_trend'] = trend  # fill in NA with new trend
+        t_count += 1
 
     # Calculate potential output
     d['ln_po'] = d['ln_tfp_trend'] + \
@@ -178,14 +193,12 @@ def est_init_values(data):
          'pc_se': [pc_se],
          'lambda_init': [lambda_init]}
     )
-    all_init_values = all_init_values.transpose().rename(columns={0:'init_values'})
+    all_init_values = all_init_values.transpose().rename(columns={0: 'init_values'})
 
     return all_init_values
 
 
-
 def kfilter_po_evp(data, initial_values):
-
     # A. Create deep copies of input
     init_val = initial_values.copy()  # all_init_values
 
@@ -290,12 +303,29 @@ for t_end in tqdm(list_t_ends):
     df = df_full[df_full.index <= t_end]
     df_kf_ind = df_kf_ind_full[df_kf_ind_full.index <= t_end]
 
-    # Estimate PO (PF)
+    # Estimate RECURSIVE PO (ONE-SIDED PF)
     list_col_ln = ['ln_gdp', 'ln_lforce', 'ln_nks']
     list_col_ln_trend = [i + '_trend' for i in list_col_ln]
+    burn_in_duration = 20
     for i, j in zip(list_col_ln, list_col_ln_trend):
-        cycle, trend = smt.filters.hpfilter(df.loc[~df[i].isna(), i], lamb=1600)
-        df[j] = trend  # don't replace original with trend component
+        if j in list(df.columns):
+            del df[j]
+        t_count = 0
+        for t in tqdm(list(df.index)):
+            if t_count < burn_in_duration:
+                pass
+            elif t_count >= burn_in_duration:
+                cycle, trend = \
+                    smt.filters.hpfilter(
+                        df.loc[(~df[i].isna()) & (df.index <= t), i],
+                        lamb=11200
+                    )
+                if t_count == burn_in_duration:
+                    df[j] = trend
+                elif t_count > burn_in_duration:
+                    df.loc[df[j].isna(), j] = trend  # fill in NA with new trend
+            t_count += 1
+
     df = prodfunc_po(data=df)
     df = df.rename(columns={'output_gap': 'output_gap_pf',
                             'po': 'po_pf'})
@@ -349,24 +379,22 @@ for t_end in tqdm(list_t_ends):
 
     # Merging
     if round == 1:
-        df_final = pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})
+        df_final = pd.DataFrame(df['output_gap_kf']).rename(columns={'output_gap_kf': t_end})  # KF ONLY
     elif round > 1:
         df_final = pd.concat([df_final,
-                              pd.DataFrame(df['output_gap_avg']).rename(columns={'output_gap_avg': t_end})],
-                             axis=1)
+                              pd.DataFrame(df['output_gap_kf']).rename(columns={'output_gap_kf': t_end})],
+                             axis=1)  # PF ONLY
     round += 1
 
 # V --- Export data
 
 df_final = df_final.reset_index()
 df_final['quarter'] = df_final['quarter'].astype('str')
-df_final.to_parquet('boombustpo_estimates_vintages.parquet', compression='brotli')
+df_final.to_parquet('boombustpo_estimates_vintages_onesided_kfonly.parquet', compression='brotli')
 
 # VI --- Notify
 telsendmsg(conf=tel_config,
-           msg='boombustpo_compute_vintages: COMPLETED')
+           msg='boombustpo_compute_vintages_onesided_kfonly: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
-
-
