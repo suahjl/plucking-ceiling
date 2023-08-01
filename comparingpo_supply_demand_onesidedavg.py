@@ -258,7 +258,7 @@ def est_var(data, chol_order, max_lags, trend_term, irf_horizon, plot_response, 
 
     # back out IRF
     irf = res.irf(irf_horizon)
-    fig_irf = irf.plot(orth=True, response=plot_response, stderr_type='asym')  # 'asym' 'mc'
+    fig_irf = irf.plot(orth=True, response=plot_response, stderr_type='mc')  # 'asym' 'mc'
     fig_irf.savefig(fname=charts_dst_prefix + '_OIRF.png')
 
     # cumulative IRF

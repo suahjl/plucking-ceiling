@@ -30,8 +30,8 @@ time_start = time.time()
 # 0 --- Main settings
 load_dotenv()
 tel_config = os.getenv('TEL_CONFIG')
-T_lb = '2014-12'
-T_lb_day = date(2014, 12, 1)  # reporting break
+T_lb = '2015-01'
+T_lb_day = date(2015, 1, 1)  # reporting break
 use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
 if use_forecast:
     file_suffix_fcast = '_forecast'
@@ -39,7 +39,7 @@ elif not use_forecast:
     file_suffix_fcast = ''
 
 # urate sd = 0.55
-downturn_threshold_choice = 0.5  # gets 1997Q4, 2008Q1, 2019Q3; and 1998Q3, 2009Q1, 2020Q2 correct
+downturn_threshold_choice = 0.29  # 0.29
 
 
 # I --- Functions
@@ -93,11 +93,24 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
 
 # II --- Load data
 # Pull from CEIC
-df = ceic2pandas_ts(input=[375443677], start_date=T_lb_day)  # monthly unemployment rate
-df = df.rename(columns={'Unemployment Rate': 'urate'})
-df = df.reset_index().rename(columns={'index': 'month'})
-df['month'] = pd.to_datetime(df['month']).dt.to_period('M')
-df['month'] = df['month'].astype('str')
+pull_from_ceic = False
+if pull_from_ceic:
+    df = ceic2pandas_ts(input=[375443677], start_date=T_lb_day)  # monthly unemployment rate
+    df = df.rename(columns={'Unemployment Rate': 'urate'})
+    df = df.reset_index().rename(columns={'index': 'month'})
+    df['month'] = pd.to_datetime(df['month']).dt.to_period('M')
+    df['month'] = df['month'].astype('str')
+
+# Load static
+if not pull_from_ceic:
+    df = pd.read_csv('ceic_static_urate.csv')
+    df = df.rename(columns={'date': 'month'})
+    df['month'] = pd.to_datetime(df['month'], format="%b-%y").dt.to_period('M')
+    df = df[df['month'] >= T_lb]
+    df['month'] = df['month'].astype('str')
+    df = df.reset_index(drop=True)
+
+# Add MoM diff
 for col in ['urate']:
     df[col + '_diff'] = df[col] - df[col].shift(1)
 
@@ -359,7 +372,7 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
             if not single_exp:
                 # interpolate
                 df.loc[df[col_peak] == 1, col_ceiling] = df[col_level]  # peaks as joints
-                df[col_ceiling] = df[col_ceiling].interpolate(method='quadratic')  # too sparse for cubic
+                df[col_ceiling] = df[col_ceiling].interpolate(method='slinear')  # too sparse for cubic
 
                 # end-point extrapolation
                 cepi_minusone = df[col_cepi].max() - 1
