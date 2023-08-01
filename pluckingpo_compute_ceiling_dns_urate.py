@@ -93,7 +93,7 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
 
 # II --- Load data
 # Pull from CEIC
-pull_from_ceic = False
+pull_from_ceic = True
 if pull_from_ceic:
     df = ceic2pandas_ts(input=[375443677], start_date=T_lb_day)  # monthly unemployment rate
     df = df.rename(columns={'Unemployment Rate': 'urate'})
@@ -397,7 +397,7 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
 
                 # interpolate
                 df.loc[df[col_peak] == 1, col_ceiling] = df[col_level]  # peaks as joints
-                df[col_ceiling] = df[col_ceiling].interpolate(method='quadratic')  # too sparse for cubic
+                df[col_ceiling] = df[col_ceiling].interpolate(method='slinear')  # too sparse for cubic
 
                 # end-point extrapolation
                 cepi_minusone = df[col_cepi].max() - 1
