@@ -5,6 +5,7 @@
 # -------------- Open data version (est3)
 # -------------- Follow dupraz nakamura steinsson
 # -------------- Only for monthly unemployment rate
+# -------------- Application to US data
 
 
 import pandas as pd
@@ -30,8 +31,8 @@ time_start = time.time()
 # 0 --- Main settings
 load_dotenv()
 tel_config = os.getenv('TEL_CONFIG')
-T_lb = '2015-01'
-T_lb_day = date(2015, 1, 1)  # reporting break
+T_lb = '1948-01'
+T_lb_day = date(1948, 1, 1)  # reporting break
 use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
 if use_forecast:
     file_suffix_fcast = '_forecast'
@@ -39,7 +40,8 @@ elif not use_forecast:
     file_suffix_fcast = ''
 
 # urate sd = 0.55
-downturn_threshold_choice = 0.29  # 0.29
+# downturn_threshold_choice = 0.29  # 0.29
+downturn_threshold_choice = 1.5  # follow DNS
 
 
 # I --- Functions
@@ -94,8 +96,8 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
 # II --- Load data
 # Pull from CEIC
 Ceic.login(os.getenv('CEIC_USERNAME'), os.getenv('CEIC_PASSWORD'))
-df = ceic2pandas_ts(input=[375443677], start_date=T_lb_day)  # monthly unemployment rate
-df = df.rename(columns={'Unemployment Rate': 'urate'})
+df = ceic2pandas_ts(input=[40902301], start_date=T_lb_day)  # monthly unemployment rate
+df = df.rename(columns={'Unemployment Rate: sa': 'urate'})
 df = df.reset_index().rename(columns={'index': 'month'})
 df['month'] = pd.to_datetime(df['month']).dt.to_period('M')
 df['month'] = df['month'].astype('str')
@@ -370,7 +372,7 @@ def compute_ceilings(data, levels_labels, ref_level_label, downturn_threshold, b
             if not single_exp:
                 # interpolate
                 df.loc[df[col_peak] == 1, col_ceiling] = df[col_level]  # peaks as joints
-                df[col_ceiling] = df[col_ceiling].interpolate(method='slinear')  # too sparse for cubic
+                df[col_ceiling] = df[col_ceiling].interpolate(method='quadratic')  # too sparse for cubic
 
                 # end-point extrapolation
                 cepi_minusone = df[col_cepi].max() - 1
@@ -454,13 +456,13 @@ df_nobound = compute_ceilings(
 # IV --- Export data frames
 # post-update frame with bounds (useful for plotting logs, and ceilings of K and N)
 df['month'] = df['month'].astype('str')
-df.to_parquet('pluckingpo_dns_urate_estimates' + file_suffix_fcast + '.parquet', compression='brotli')
+df.to_parquet('pluckingpo_dns_urate_usa_estimates' + file_suffix_fcast + '.parquet', compression='brotli')
 # post_update frame without bounds (useful for plotting logs)
 df_nobound['month'] = df_nobound['month'].astype('str')
-df_nobound.to_parquet('pluckingpo_dns_urate_estimates_nobounds' + file_suffix_fcast + '.parquet', compression='brotli')
+df_nobound.to_parquet('pluckingpo_dns_urate_usa_estimates_nobounds' + file_suffix_fcast + '.parquet', compression='brotli')
 
 telsendmsg(conf=tel_config,
-           msg='pluckingpo_compute_ceiling_dns_urate: COMPLETED')
+           msg='pluckingpo_compute_ceiling_dns_urate_usa: COMPLETED')
 
 # End
 print('\n----- Ran in ' + "{:.0f}".format(time.time() - time_start) + ' seconds -----')
