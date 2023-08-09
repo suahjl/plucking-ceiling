@@ -167,7 +167,7 @@ fig_og = plot_linechart(data=df,
                         colours=colour2,
                         dash_styles=dash2,
                         y_axis_title='% Potential Output',
-                        main_title='[US] Output Gap: Boom-Bust and Plucking',
+                        main_title='[US] Output Gap: Plucking',
                         output_suffix='OG_USA',
                         use_forecast_choice=use_forecast)
 
