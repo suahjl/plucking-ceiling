@@ -25,6 +25,8 @@ load_dotenv()
 tel_config = os.getenv('TEL_CONFIG')
 T_lb = '1995Q4'
 T_ub = '2022Q4'
+burn_in_count = 26
+t_burnin = str(pd.to_datetime(T_lb).to_period('Q') + burn_in_count)  # 26Q burn-in
 list_T_outliers = ['1997Q4', '1998Q1', '1998Q2', '1998Q3', '1998Q4',
                    '1999Q1', '1999Q2', '1999Q3', '1999Q4',
                    '2008Q3', '2008Q4', '2009Q1', '2009Q2', '2009Q3', '2009Q4',
@@ -120,6 +122,9 @@ df_bb = df_bb[(df_bb['quarter'] >= T_lb) & (df_bb['quarter'] <= T_ub)]
 df_bb = df_bb.set_index('quarter')
 df_bb = df_bb.sort_index()
 df_bb = pd.DataFrame(df_bb['output_gap_kf']).rename(columns={'output_gap_kf': 'output_gap'})
+
+# Clear burn-in period
+df_bb.loc[df_bb.index <= t_burnin, 'output_gap'] = np.nan
 
 # Merging
 df = pd.concat([df_bb, df_ceic, df_cpi_core_old], axis=1)
