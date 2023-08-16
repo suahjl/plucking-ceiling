@@ -26,7 +26,8 @@ time_start = time.time()
 # 0 --- Main settings
 load_dotenv()
 t_start = '1995Q4'
-t_burnin = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
+burn_in_count = 26
+t_burnin = str(pd.to_datetime(t_start).to_period('Q') + burn_in_count)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
 t_now = str(pd.to_datetime(str(date.today())).to_period('Q'))
 list_t_ends = ['2007Q2', '2008Q2', '2009Q3', '2015Q4', '2019Q4', '2022Q4']
@@ -351,8 +352,24 @@ for t_end in tqdm(list_t_ends):
     df['ln_po_pf_d_trend'] = np.power(1.0479, 0.25) - 1
 
     # Estimate PO (NKPC-KF)
-    all_init_values = est_init_values(data=df)
-    kfilter_po = kfilter_po_evp(data=df, initial_values=all_init_values)
+    cols_kfilter_po = ['ln_po_kf', 'output_gap_kf', 'po_kf']
+    kfilter_po = pd.DataFrame(
+        columns=cols_kfilter_po, 
+        index=df.index.copy()
+        )
+    burn_in_extra = 20
+    t_count = 0
+    for t in tqdm(list(df.index)):
+        if (t_count < (burn_in_count + burn_in_extra)):
+            pass
+        elif (t_count >= (burn_in_count + burn_in_extra)):
+            df_sub = df[df.index <= t].copy()
+            all_init_values = est_init_values(data=df_sub)
+            kfilter_po_sub = kfilter_po_evp(data=df_sub, initial_values=all_init_values)
+            kfilter_po.loc[
+                kfilter_po['po_kf'].isna(), cols_kfilter_po
+                ] = kfilter_po_sub[cols_kfilter_po]
+        t_count+=1
 
     # Consol estimates (PF + KF)
     df = pd.concat([df, kfilter_po], axis=1)  # left-right concat

@@ -45,7 +45,7 @@ def ceic2pandas(input, t_start, t_end):  # input should be a list of CEIC Series
         y = series_result.data
         name = y[0].metadata.country.name  # retrieves country name
         longname = y[0].metadata.name # retrieves CEIC series name
-        time_points_dict = dict((tp.date, tp.value) for tp in y[0].time_points)  # this is a list of 1 dictionary,
+        time_points_dict = dict((tp._date, tp.value) for tp in y[0].time_points)  # this is a list of 1 dictionary,
         series = pd.Series(time_points_dict)  # convert into pandas series indexed to timepoints
         if k == 1:
             frame_consol = pd.DataFrame(series)

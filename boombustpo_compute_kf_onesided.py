@@ -1,3 +1,4 @@
+# %%
 import gc
 
 import pandas as pd
@@ -17,10 +18,12 @@ import pyeviews as evp
 
 time_start = time.time()
 
+# %%
 # 0 --- Main settings
 load_dotenv()
 t_start = '1995Q4'
-t_burnin = str(pd.to_datetime(t_start).to_period('Q') + 26)  # 26Q burn-in
+burn_in_count = 26
+t_burnin = str(pd.to_datetime(t_start).to_period('Q') + burn_in_count)  # 26Q burn-in
 t_start_plus1 = str(pd.to_datetime(t_start).to_period('Q') + 1)  # 1Q after start of time series
 tel_config = os.getenv('TEL_CONFIG')
 use_forecast = ast.literal_eval(os.getenv('USE_FORECAST_BOOL'))
@@ -32,6 +35,7 @@ elif not use_forecast:
     file_suffix_fcast = ''
 
 
+# %%
 # I --- Functions
 
 
@@ -54,13 +58,14 @@ def telsendmsg(conf='', msg=''):
                        messages=[msg])
 
 
+# %%
 # II --- Load data
 df = pd.read_parquet('boombustpo_input_data_kf_onesided' + file_suffix_fcast + '.parquet')
 df['quarter'] = pd.to_datetime(df['quarter']).dt.to_period('Q')
 df = df.set_index('quarter')
 
-# III --- Estimate initial parameter values
-
+# %%
+# III --- Define computational functions
 
 def est_init_values(data):
     d = data.copy()
@@ -132,12 +137,6 @@ def est_init_values(data):
     all_init_values = all_init_values.transpose().rename(columns={0:'init_values'})
 
     return all_init_values
-
-
-all_init_values = est_init_values(data=df)
-
-
-# IV --- Estimate NKPC Using Kalman Filter
 
 
 def kfilter_po_evp(data, initial_values):
@@ -238,9 +237,29 @@ def kfilter_po_evp(data, initial_values):
     return kfilter_output
 
 
-kfilter_po = kfilter_po_evp(data=df, initial_values=all_init_values)
+# %%
+# IV --- Estimate
+cols_kfilter_po = ['ln_po_kf', 'output_gap_kf', 'po_kf']
+kfilter_po = pd.DataFrame(
+    columns=cols_kfilter_po, 
+    index=df.index.copy()
+    )
+burn_in_extra = 20
+t_count = 0
+for t in tqdm(list(df.index)):
+    if (t_count < (burn_in_count + burn_in_extra)):
+        pass
+    elif (t_count >= (burn_in_count + burn_in_extra)):
+        df_sub = df[df.index <= t].copy()
+        all_init_values = est_init_values(data=df_sub)
+        kfilter_po_sub = kfilter_po_evp(data=df_sub, initial_values=all_init_values)
+        kfilter_po.loc[
+            kfilter_po['po_kf'].isna(), cols_kfilter_po
+            ] = kfilter_po_sub[cols_kfilter_po]
+    t_count+=1
+            
 
-
+# %%
 # V --- Consolidate output
 df = pd.concat([df, kfilter_po], axis=1)  # left-right concat
 list_col_output = ['gdp', 'po_pf', 'po_kf',
@@ -273,6 +292,7 @@ list_col_yoy = [i + '_yoy' for i in list_col]
 for i, j in zip(list_col, list_col_yoy):
     df[j] = 100 * ((df[i] / df[i].shift(4)) - 1)
 
+# %%
 # VI --- Export data frames
 df = df.reset_index()
 df['quarter'] = df['quarter'].astype('str')

@@ -62,7 +62,7 @@ def ceic2pandas_ts(input, start_date):  # input should be a list of CEIC Series 
         series_result = Ceic.series(i, start_date=start_date)  # retrieves ceicseries
         y = series_result.data
         series_name = y[0].metadata.name  # retrieves name of series
-        time_points_dict = dict((tp.date, tp.value) for tp in y[0].time_points)  # this is a list of 1 dictionary,
+        time_points_dict = dict((tp._date, tp.value) for tp in y[0].time_points)  # this is a list of 1 dictionary,
         series = pd.Series(time_points_dict)  # convert into pandas series indexed to timepoints
         if k == 1:
             frame_consol = pd.DataFrame(series)
