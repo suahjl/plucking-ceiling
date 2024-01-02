@@ -271,8 +271,8 @@ def plot_scatter(data, y_col, x_col, colour, chart_title, output_suffix):
                       plot_bgcolor='white',
                       hovermode='x',
                       font=dict(size=20, color='black'))
-    fig.write_image('Output/PluckingPO_CrossCountry_Scatter_' + output_suffix + '.png', height=768, width=1366)
-    fig.write_html('Output/PluckingPO_CrossCountry_Scatter_' + output_suffix + '.html')
+    fig.write_image('Output/PluckingPO_CrossCountry_Check_Scatter_' + output_suffix + '.png', height=768, width=1366)
+    fig.write_html('Output/PluckingPO_CrossCountry_Check_Scatter_' + output_suffix + '.html')
     return fig
 
 
@@ -284,7 +284,7 @@ fig_expcon = plot_scatter(data=df_expcon,
                           chart_title='Real GDP: Expansion Pace vs. Subsequent Contraction Pace (%QoQ SA)',
                           output_suffix='RGDP_ExpCon')
 telsendimg(conf=tel_config,
-           path='Output/PluckingPO_CrossCountry_Scatter_RGDP_ExpCon' + '.png')
+           path='Output/PluckingPO_CrossCountry_Check_Scatter_RGDP_ExpCon' + '.png')
 # Exp --> Con (avg)
 fig_expcon_avg = plot_scatter(data=df_expcon_avg,
                               y_col='subsequent_contraction_pace',
@@ -293,7 +293,7 @@ fig_expcon_avg = plot_scatter(data=df_expcon_avg,
                               chart_title='Real GDP: Average Expansion Pace vs. Subsequent Contraction Pace (%QoQ SA)',
                               output_suffix='RGDP_ExpCon_Avg')
 telsendimg(conf=tel_config,
-           path='Output/PluckingPO_CrossCountry_Scatter_RGDP_ExpCon_Avg' + '.png')
+           path='Output/PluckingPO_CrossCountry_Check_Scatter_RGDP_ExpCon_Avg' + '.png')
 
 # Con --> Exp
 fig_conexp = plot_scatter(data=df_conexp,
@@ -303,7 +303,7 @@ fig_conexp = plot_scatter(data=df_conexp,
                           chart_title='Real GDP: Contraction Pace vs. Subsequent Expansion Pace (%QoQ SA)',
                           output_suffix='RGDP_ConExp')
 telsendimg(conf=tel_config,
-           path='Output/PluckingPO_CrossCountry_Scatter_RGDP_ConExp' + '.png')
+           path='Output/PluckingPO_CrossCountry_Check_Scatter_RGDP_ConExp' + '.png')
 # Con --> Exp (Avg)
 fig_conexp_avg = plot_scatter(data=df_conexp_avg,
                               y_col='subsequent_expansion_pace',
@@ -312,7 +312,7 @@ fig_conexp_avg = plot_scatter(data=df_conexp_avg,
                               chart_title='Real GDP: Average Contraction Pace vs. Subsequent Expansion Pace (%QoQ SA)',
                               output_suffix='RGDP_ConExp_Avg')
 telsendimg(conf=tel_config,
-           path='Output/PluckingPO_CrossCountry_Scatter_RGDP_ConExp_Avg' + '.png')
+           path='Output/PluckingPO_CrossCountry_Check_Scatter_RGDP_ConExp_Avg' + '.png')
 
 # List of countries
 telsendmsg(conf=tel_config,
